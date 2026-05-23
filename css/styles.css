@@ -302,6 +302,7 @@ input[type="range"]::-moz-range-thumb {
 .btn-small:hover { background: rgba(33,150,243,0.15); }
 .btn-small.danger { border-color: var(--accent-red); color: var(--accent-red); }
 .btn-small.danger:hover { background: rgba(244,67,54,0.15); }
+.btn-small.shutter-closed { border-color: var(--accent-orange); color: var(--accent-orange); background: rgba(255,152,0,0.15); }
 
 .ring-item {
   background: rgba(255,255,255,0.03);

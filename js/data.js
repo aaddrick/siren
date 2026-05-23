@@ -16,8 +16,8 @@ const PRESETS = {
   thunderbolt: {
     name: 'Tornado Siren',
     rings: [
-      { portCount: 5, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
-      { portCount: 6, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 5, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
+      { portCount: 6, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
     ],
     motor: {
       maxRPM: 7500, mode: 'wail',
@@ -31,8 +31,8 @@ const PRESETS = {
   city: {
     name: 'City Siren',
     rings: [
-      { portCount: 10, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
-      { portCount: 12, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 10, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
+      { portCount: 12, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
     ],
     motor: {
       maxRPM: 3450, mode: 'wail',
@@ -46,8 +46,8 @@ const PRESETS = {
   airraid: {
     name: 'Air Raid',
     rings: [
-      { portCount: 9, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
-      { portCount: 12, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 9, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
+      { portCount: 12, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
     ],
     motor: {
       maxRPM: 3500, mode: 'wail',
@@ -61,7 +61,7 @@ const PRESETS = {
   simple: {
     name: 'Simple Tone',
     rings: [
-      { portCount: 8, portShape: 'round', dutyCycle: 0.5, enabled: true },
+      { portCount: 8, portShape: 'round', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
     ],
     motor: {
       maxRPM: 3000, mode: 'steady',
@@ -75,7 +75,7 @@ const PRESETS = {
   chrysler: {
     name: 'Chrysler Air Raid',
     rings: [
-      { portCount: 6, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 6, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
     ],
     motor: {
       maxRPM: 2950, mode: 'steady',
@@ -89,8 +89,8 @@ const PRESETS = {
   model2: {
     name: 'Federal Model 2',
     rings: [
-      { portCount: 5, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
-      { portCount: 6, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 5, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
+      { portCount: 6, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
     ],
     motor: {
       maxRPM: 3450, mode: 'wail',
@@ -104,7 +104,7 @@ const PRESETS = {
   federal500: {
     name: 'Federal 500',
     rings: [
-      { portCount: 10, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 10, portShape: 'rectangular', statorDutyCycle: 0.25, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
     ],
     motor: {
       maxRPM: 3450, mode: 'steady',
@@ -118,7 +118,7 @@ const PRESETS = {
   m65: {
     name: 'Sentry M-65',
     rings: [
-      { portCount: 8, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 8, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
     ],
     motor: {
       maxRPM: 3000, mode: 'wail',
@@ -164,15 +164,14 @@ const PARTS = {
 // ============================================================
 const state = {
   rings: [
-    { portCount: 10, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
-    { portCount: 12, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    { portCount: 10, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
+    { portCount: 12, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true },
   ],
   motor: {
     maxRPM: 3450, mode: 'steady', running: false,
     tauUp: 8, tauDown: 12,
     wailPeriod: 10, wailMin: 0.4,
     alertPeriod: 7, alertDuty: 0.5,
-    hiloPeriod: 3, attackPeriod: 6,
   },
   horn: { freq: 500, Q: 1.0, gain: 6, shape: 'wide' },
   volume: 0.7,

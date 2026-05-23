@@ -333,14 +333,20 @@ function drawSiren(time) {
     // Draw stator port pattern (fixed)
     if (ring.enabled) {
       drawPortBand(ctx, assemblyX, statorY, assemblyW, statorRowH,
-        ring.portCount, ring.dutyCycle, ring.portShape, 0, '#4a4a6a', color + '30');
+        ring.portCount, ring.statorDutyCycle, ring.portShape, 0, '#4a4a6a', color + '30');
+    }
+
+    // Shutter overlay on stator
+    if (!ring.shutterOpen) {
+      ctx.fillStyle = 'rgba(40, 40, 55, 0.75)';
+      ctx.fillRect(assemblyX, statorY, assemblyW, statorRowH);
     }
 
     // Stator label
     ctx.fillStyle = '#666';
     ctx.font = `9px ${fontFamily}`;
     ctx.textAlign = 'left';
-    ctx.fillText('STATOR', assemblyX + 4, statorY + statorRowH - 3);
+    ctx.fillText(ring.shutterOpen ? 'STATOR' : 'SHUT', assemblyX + 4, statorY + statorRowH - 3);
 
     // --- ROTOR ROW (scrolling ports) ---
     const rotorY = statorY + statorRowH + 2;
@@ -350,7 +356,7 @@ function drawSiren(time) {
     if (ring.enabled) {
       const scrollOffset = (animAngle / (2 * Math.PI)) * assemblyW;
       drawPortBand(ctx, assemblyX, rotorY, assemblyW, rotorRowH,
-        ring.portCount, ring.dutyCycle, ring.portShape, scrollOffset, '#1e1e2e', color);
+        ring.portCount, ring.rotorDutyCycle, ring.portShape, scrollOffset, '#1e1e2e', color);
 
       // Glow on rotor when running
       if (isRunning) {
@@ -379,7 +385,7 @@ function drawSiren(time) {
     // Air flow indicators between stator and rotor
     if (ring.enabled && isRunning) {
       drawAirFlow(ctx, assemblyX, statorY, assemblyW, statorRowH, rotorRowH,
-        ring.portCount, ring.dutyCycle, animAngle, color, rpmFrac);
+        ring.portCount, ring.statorDutyCycle, ring.rotorDutyCycle, animAngle, color, rpmFrac);
     }
 
     // Divider between rings
@@ -516,13 +522,15 @@ function drawPortBand(ctx, x, y, w, h, portCount, dutyCycle, shape, scrollOffset
   ctx.restore();
 }
 
-function drawAirFlow(ctx, x, statorY, w, statorH, rotorH, portCount, dutyCycle, angle, color, rpmFrac) {
+function drawAirFlow(ctx, x, statorY, w, statorH, rotorH, portCount, statorDuty, rotorDuty, angle, color, rpmFrac) {
   if (rpmFrac < 0.05) return;
   const period = w / portCount;
-  const portW = period * dutyCycle;
+  const statorPortW = period * statorDuty;
+  const rotorPortW = period * rotorDuty;
   const rotorOffset = (angle / (2 * Math.PI)) * w;
   const flowY = statorY + statorH;
   const flowH = 2;
+  const overlapW = Math.min(statorPortW, rotorPortW);
 
   ctx.save();
   ctx.beginPath();
@@ -534,15 +542,14 @@ function drawAirFlow(ctx, x, statorY, w, statorH, rotorH, portCount, dutyCycle, 
     const statorPortX = i * period;
     const rotorPortX = (i * period + rotorOffset) % (w + period);
 
-    // Check approximate alignment
-    const statorCenter = statorPortX + portW / 2;
-    const rotorCenter = rotorPortX + portW / 2;
+    const statorCenter = statorPortX + statorPortW / 2;
+    const rotorCenter = rotorPortX + rotorPortW / 2;
     for (let rp = -w; rp <= w; rp += w) {
       const diff = Math.abs(statorCenter - (rotorCenter + rp));
-      if (diff < portW * 0.7) {
+      if (diff < (statorPortW + rotorPortW) / 2 * 0.7) {
         const fx = x + statorPortX;
         ctx.fillStyle = color;
-        ctx.fillRect(fx, flowY, portW, flowH);
+        ctx.fillRect(fx, flowY, overlapW, flowH);
         break;
       }
     }

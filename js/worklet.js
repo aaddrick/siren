@@ -15,22 +15,41 @@ class SirenProcessor extends AudioWorkletProcessor {
       tauUp: 8, tauDown: 12,
       wailPeriod: 10, wailMin: 0.4,
       alertPeriod: 7, alertDuty: 0.5,
-      hiloPeriod: 3, attackPeriod: 6,
     };
     this.volume = 0.7;
     this.telemetryCounter = 0;
     this.telemetryInterval = Math.floor(sampleRate * 0.05);
-    // Hi-Lo state
-    this.hiloTimer = 0;
-    this.hiloState = 0;
     // Noise filter state
     this.noisePrev = 0;
+    // Shutter positions (0 = closed, 1 = open) — smoothly interpolated
+    this.shutterPositions = [];
+    this.shutterSpeed = 5.0; // full travel in ~200ms
+    this.shutterFilterStates = [];
 
     this.port.onmessage = (e) => {
       const msg = e.data;
       switch (msg.type) {
-        case 'config':
-          this.rings = msg.rings || [];
+        case 'config': {
+          const newRings = msg.rings || [];
+          const newPositions = new Array(newRings.length);
+          const newFilterStates = new Array(newRings.length);
+          for (let i = 0; i < newRings.length; i++) {
+            newPositions[i] = i < this.shutterPositions.length
+              ? this.shutterPositions[i]
+              : (newRings[i].shutterOpen ? 1.0 : 0.0);
+            newFilterStates[i] = i < this.shutterFilterStates.length
+              ? this.shutterFilterStates[i]
+              : 0;
+          }
+          this.rings = newRings;
+          this.shutterPositions = newPositions;
+          this.shutterFilterStates = newFilterStates;
+          break;
+        }
+        case 'shutter':
+          if (msg.ring >= 0 && msg.ring < this.rings.length) {
+            this.rings[msg.ring].shutterOpen = msg.open;
+          }
           break;
         case 'motor':
           if (msg.running !== undefined) this.running = msg.running;
@@ -42,8 +61,6 @@ class SirenProcessor extends AudioWorkletProcessor {
           if (msg.wailMin !== undefined) this.motor.wailMin = msg.wailMin;
           if (msg.alertPeriod !== undefined) this.motor.alertPeriod = msg.alertPeriod;
           if (msg.alertDuty !== undefined) this.motor.alertDuty = msg.alertDuty;
-          if (msg.hiloPeriod !== undefined) this.motor.hiloPeriod = msg.hiloPeriod;
-          if (msg.attackPeriod !== undefined) this.motor.attackPeriod = msg.attackPeriod;
           break;
         case 'volume':
           this.volume = msg.level;
@@ -52,22 +69,20 @@ class SirenProcessor extends AudioWorkletProcessor {
     };
   }
 
-  portOverlap(phase, dutyCycle) {
-    // phase: 0-1 within one port period, dutyCycle: 0-1
-    // Convolution of two rectangular pulses of width dutyCycle
-    const w = dutyCycle;
+  portOverlap(phase, statorDuty, rotorDuty) {
+    const minW = Math.min(statorDuty, rotorDuty);
+    const halfSum = (statorDuty + rotorDuty) / 2;
     let d = phase % 1.0;
     if (d < 0) d += 1.0;
     if (d > 0.5) d -= 1.0;
-    return Math.max(0, w - Math.abs(d)) / w;
+    return Math.max(0, Math.min(minW, halfSum - Math.abs(d))) / minW;
   }
 
-  portOverlapRound(phase, dutyCycle) {
-    // Smooth cosine-based overlap for round ports
+  portOverlapRound(phase, statorDuty, rotorDuty) {
     let d = phase % 1.0;
     if (d < 0) d += 1.0;
     if (d > 0.5) d -= 1.0;
-    const w = dutyCycle * 0.5;
+    const w = (statorDuty + rotorDuty) / 2 * 0.5;
     if (Math.abs(d) >= w) return 0;
     return 0.5 * (1 + Math.cos(Math.PI * d / w));
   }
@@ -86,14 +101,6 @@ class SirenProcessor extends AudioWorkletProcessor {
       case 'alert': {
         const phase = (this.time % m.alertPeriod) / m.alertPeriod;
         return phase < m.alertDuty ? m.maxRPM : 0;
-      }
-      case 'hilo':
-        return m.maxRPM;
-      case 'attack': {
-        const phase = (this.time % m.attackPeriod) / m.attackPeriod;
-        if (phase < 0.3) return m.maxRPM;
-        if (phase < 0.5) return m.maxRPM;
-        return 0;
       }
       default:
         return m.maxRPM;
@@ -122,15 +129,6 @@ class SirenProcessor extends AudioWorkletProcessor {
       const angularVel = this.rpm * 2 * Math.PI / 60;
       this.rotorAngle = (this.rotorAngle + angularVel * dt) % (2 * Math.PI);
 
-      // Hi-Lo timer update (before ring loop)
-      if (this.motor.mode === 'hilo' && this.rings.length >= 2) {
-        this.hiloTimer += dt;
-        if (this.hiloTimer >= this.motor.hiloPeriod) {
-          this.hiloTimer = 0;
-          this.hiloState = 1 - this.hiloState;
-        }
-      }
-
       // Sum ring contributions
       let sample = 0;
       let activeCount = 0;
@@ -138,23 +136,48 @@ class SirenProcessor extends AudioWorkletProcessor {
       for (let r = 0; r < this.rings.length; r++) {
         const ring = this.rings[r];
         if (!ring.enabled) continue;
-        // Hi-Lo: only play the active ring
-        if (this.motor.mode === 'hilo' && this.rings.length >= 2 && r !== this.hiloState % this.rings.length) continue;
+
+        // Smooth shutter transition (linear, like a physical shutter sliding)
+        const shutterTarget = ring.shutterOpen ? 1.0 : 0.0;
+        let sp = this.shutterPositions[r] || 0;
+        if (sp < shutterTarget) {
+          sp = Math.min(shutterTarget, sp + this.shutterSpeed * dt);
+        } else if (sp > shutterTarget) {
+          sp = Math.max(shutterTarget, sp - this.shutterSpeed * dt);
+        }
+        this.shutterPositions[r] = sp;
+
+        if (sp < 0.001) continue;
         activeCount++;
 
         const n = ring.portCount;
         const portPhase = ((n * this.rotorAngle) / (2 * Math.PI)) % 1.0;
 
+        // Shutter modulates effective stator opening
+        const effectiveStator = ring.statorDutyCycle * sp;
+
         let openness;
         if (ring.portShape === 'round') {
-          openness = this.portOverlapRound(portPhase, ring.dutyCycle);
+          openness = this.portOverlapRound(portPhase, effectiveStator, ring.rotorDutyCycle);
         } else {
-          openness = this.portOverlap(portPhase, ring.dutyCycle);
+          openness = this.portOverlap(portPhase, effectiveStator, ring.rotorDutyCycle);
         }
 
         // Center around 0 for audio signal, weight by ring index
         const weight = 0.8 + 0.2 * (r / Math.max(1, this.rings.length - 1));
-        sample += (openness - 0.5) * weight;
+        let ringSample = (openness - 0.5) * weight;
+
+        // Low-pass filter simulates shutter muffling higher frequencies
+        if (sp < 0.999) {
+          const cutoff = 800 * Math.pow(25, sp);
+          const alpha = 1 - Math.exp(-2 * Math.PI * cutoff * dt);
+          this.shutterFilterStates[r] += alpha * (ringSample - this.shutterFilterStates[r]);
+          ringSample = this.shutterFilterStates[r];
+        } else {
+          this.shutterFilterStates[r] = ringSample;
+        }
+
+        sample += ringSample;
       }
 
       if (activeCount > 0) sample /= activeCount;

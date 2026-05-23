@@ -124,7 +124,9 @@ function sendConfig() {
     rings: state.rings.map(r => ({
       portCount: r.portCount,
       portShape: r.portShape,
-      dutyCycle: r.dutyCycle,
+      statorDutyCycle: r.statorDutyCycle,
+      rotorDutyCycle: r.rotorDutyCycle,
+      shutterOpen: r.shutterOpen,
       enabled: r.enabled,
     })),
   });
@@ -143,14 +145,17 @@ function sendMotor() {
     wailMin: state.motor.wailMin,
     alertPeriod: state.motor.alertPeriod,
     alertDuty: state.motor.alertDuty,
-    hiloPeriod: state.motor.hiloPeriod,
-    attackPeriod: state.motor.attackPeriod,
   });
 }
 
 function sendVolume() {
   if (!sirenNode) return;
   sirenNode.port.postMessage({ type: 'volume', level: state.volume });
+}
+
+function sendShutter(ringIndex, open) {
+  if (!sirenNode) return;
+  sirenNode.port.postMessage({ type: 'shutter', ring: ringIndex, open: open });
 }
 
 function updateHornFilter() {

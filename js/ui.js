@@ -97,6 +97,7 @@ function updateRingUI() {
         <span><span class="ring-badge" style="background:${color}"></span>
         Ring ${i + 1}: ${ring.portCount} holes</span>
         <div class="ring-actions">
+          <button class="btn-small${ring.shutterOpen ? '' : ' shutter-closed'}" data-shutter="${i}">${ring.shutterOpen ? 'OPEN' : 'SHUT'}</button>
           <button class="btn-small" data-toggle="${i}">${ring.enabled ? 'ON' : 'OFF'}</button>
           ${state.rings.length > 1 ? `<button class="btn-small danger" data-remove="${i}">X</button>` : ''}
         </div>
@@ -108,6 +109,16 @@ function updateRingUI() {
       updateRingUI();
     });
     container.appendChild(div);
+  });
+
+  // Shutter handlers
+  container.querySelectorAll('[data-shutter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.shutter);
+      state.rings[idx].shutterOpen = !state.rings[idx].shutterOpen;
+      sendShutter(idx, state.rings[idx].shutterOpen);
+      updateRingUI();
+    });
   });
 
   // Toggle/remove handlers
@@ -140,8 +151,10 @@ function updateRingUI() {
     const ring = state.rings[state.selectedRing];
     document.getElementById('port-count-slider').value = ring.portCount;
     document.getElementById('port-count-display').textContent = ring.portCount;
-    document.getElementById('duty-slider').value = Math.round(ring.dutyCycle * 100);
-    document.getElementById('duty-display').textContent = Math.round(ring.dutyCycle * 100) + '%';
+    document.getElementById('stator-duty-slider').value = Math.round(ring.statorDutyCycle * 100);
+    document.getElementById('stator-duty-display').textContent = Math.round(ring.statorDutyCycle * 100) + '%';
+    document.getElementById('rotor-duty-slider').value = Math.round(ring.rotorDutyCycle * 100);
+    document.getElementById('rotor-duty-display').textContent = Math.round(ring.rotorDutyCycle * 100) + '%';
     document.querySelectorAll('.shape-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.shape === ring.portShape);
     });
@@ -160,12 +173,21 @@ function updateRingUI() {
 // Add ring
 document.getElementById('btn-add-ring').addEventListener('click', () => {
   if (state.rings.length >= MAX_RINGS) return;
-  state.rings.push({ portCount: 8, portShape: 'rectangular', dutyCycle: 0.5, enabled: true });
+  state.rings.push({ portCount: 8, portShape: 'rectangular', statorDutyCycle: 0.5, rotorDutyCycle: 0.5, shutterOpen: true, enabled: true });
   state.selectedRing = state.rings.length - 1;
   sendConfig();
   updateRingUI();
   state.activePreset = null;
   updatePresetUI();
+});
+
+// Swap shutters (invert all)
+document.getElementById('btn-swap-shutters').addEventListener('click', () => {
+  state.rings.forEach((ring, i) => {
+    ring.shutterOpen = !ring.shutterOpen;
+    sendShutter(i, ring.shutterOpen);
+  });
+  updateRingUI();
 });
 
 // Port count slider
@@ -181,11 +203,21 @@ document.getElementById('port-count-slider').addEventListener('input', (e) => {
   updatePresetUI();
 });
 
-// Duty cycle slider
-document.getElementById('duty-slider').addEventListener('input', (e) => {
+// Stator duty cycle slider
+document.getElementById('stator-duty-slider').addEventListener('input', (e) => {
   if (state.selectedRing >= state.rings.length) return;
-  state.rings[state.selectedRing].dutyCycle = parseInt(e.target.value) / 100;
-  document.getElementById('duty-display').textContent = e.target.value + '%';
+  state.rings[state.selectedRing].statorDutyCycle = parseInt(e.target.value) / 100;
+  document.getElementById('stator-duty-display').textContent = e.target.value + '%';
+  sendConfig();
+  state.activePreset = null;
+  updatePresetUI();
+});
+
+// Rotor duty cycle slider
+document.getElementById('rotor-duty-slider').addEventListener('input', (e) => {
+  if (state.selectedRing >= state.rings.length) return;
+  state.rings[state.selectedRing].rotorDutyCycle = parseInt(e.target.value) / 100;
+  document.getElementById('rotor-duty-display').textContent = e.target.value + '%';
   sendConfig();
   state.activePreset = null;
   updatePresetUI();
@@ -351,11 +383,24 @@ function saveSiren(name) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
 }
 
+function migrateRing(r) {
+  const ring = { ...r };
+  if (ring.dutyCycle !== undefined && ring.statorDutyCycle === undefined) {
+    ring.statorDutyCycle = ring.dutyCycle;
+    ring.rotorDutyCycle = ring.dutyCycle;
+    delete ring.dutyCycle;
+  }
+  if (ring.shutterOpen === undefined) {
+    ring.shutterOpen = true;
+  }
+  return ring;
+}
+
 function loadSiren(index) {
   const saves = getSaves();
   if (index < 0 || index >= saves.length) return;
   const save = saves[index];
-  state.rings = save.state.rings.map(r => ({ ...r }));
+  state.rings = save.state.rings.map(migrateRing);
   Object.assign(state.motor, save.state.motor);
   state.horn = { ...save.state.horn };
   state.volume = save.state.volume;
@@ -511,7 +556,7 @@ function loadFromHash() {
   try {
     const data = JSON.parse(atob(hash.slice(8)));
     if (data.v !== 1) return false;
-    state.rings = data.r.map(r => ({ ...r }));
+    state.rings = data.r.map(migrateRing);
     Object.assign(state.motor, data.m);
     state.motor.running = false;
     state.horn = { ...data.h };
@@ -569,6 +614,13 @@ document.addEventListener('keydown', (e) => {
   if (modeMap[key]) {
     const modeBtn = document.querySelector(`.mode-btn[data-mode="${modeMap[key]}"]`);
     if (modeBtn) modeBtn.click();
+    return;
+  }
+
+  // Tab — Swap shutters
+  if (key === 'Tab') {
+    e.preventDefault();
+    document.getElementById('btn-swap-shutters').click();
     return;
   }
 
@@ -686,7 +738,9 @@ function syncAssemblyToState() {
     state.rings = [{
       portCount: asm.rotor.portCount,
       portShape: 'rectangular',
-      dutyCycle: 0.5,
+      statorDutyCycle: 0.5,
+      rotorDutyCycle: 0.5,
+      shutterOpen: true,
       enabled: true,
     }];
     state.selectedRing = 0;

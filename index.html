@@ -56,8 +56,6 @@
         <button class="mode-btn active" data-mode="steady"><span class="icon">&#x2500;</span>STEADY</button>
         <button class="mode-btn" data-mode="wail"><span class="icon">&#x223F;</span>WAIL</button>
         <button class="mode-btn" data-mode="alert"><span class="icon">&#x2A5A;</span>ALERT</button>
-        <button class="mode-btn" data-mode="hilo"><span class="icon">&#x2195;</span>HI-LO</button>
-        <button class="mode-btn" data-mode="attack"><span class="icon">&#x26A1;</span>ATTACK</button>
       </div>
     </div>
 
@@ -74,8 +72,9 @@
     <div class="control-group">
       <label>Rings</label>
       <div class="ring-controls" id="ring-controls"></div>
-      <div style="margin-top:8px">
+      <div style="margin-top:8px;display:flex;gap:8px">
         <button class="btn-small" id="btn-add-ring">+ Add Ring</button>
+        <button class="btn-small" id="btn-swap-shutters">SWAP</button>
       </div>
     </div>
 
@@ -86,8 +85,12 @@
         <input type="range" id="port-count-slider" min="4" max="16" value="10" step="1">
       </div>
       <div style="margin-bottom:10px">
-        <label style="font-size:13px">Hole Size: <span class="value-display" id="duty-display">50%</span></label>
-        <input type="range" id="duty-slider" min="20" max="80" value="50" step="1">
+        <label style="font-size:13px">Stator Slot Size: <span class="value-display" id="stator-duty-display">50%</span></label>
+        <input type="range" id="stator-duty-slider" min="20" max="80" value="50" step="1">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px">Rotor Hole Size: <span class="value-display" id="rotor-duty-display">50%</span></label>
+        <input type="range" id="rotor-duty-slider" min="20" max="80" value="50" step="1">
       </div>
       <div>
         <label style="font-size:13px">Hole Shape:</label>
