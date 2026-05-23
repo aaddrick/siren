@@ -120,6 +120,7 @@ function drawSiren(time) {
   const rect = canvas.getBoundingClientRect();
   const W = rect.width;
   const H = rect.height;
+  const wavePad = 60;
   const pad = 16;
   const innerW = W - pad * 2;
   const rpmFrac = state.currentRPM / Math.max(1, state.motor.maxRPM);
@@ -135,13 +136,13 @@ function drawSiren(time) {
   const shaftH = H * 0.08;
   const statorCapH = 6;
   const basePlateH = 6;
-  const ringAreaH = H - hornH - statorCapH - basePlateH - shaftH - motorH - pad * 2;
+  const ringAreaH = H - hornH - statorCapH - basePlateH - shaftH - motorH - wavePad - pad;
   const ringTotalH = ringAreaH / ringsCount;
   const statorRowH = ringTotalH * 0.35;
   const rotorRowH = ringTotalH * 0.35;
   const ringGapH = ringTotalH * 0.3;
 
-  let y = pad;
+  let y = wavePad;
 
   // === SOUND WAVES (drawn before horn so they appear behind it) ===
   {
@@ -179,13 +180,12 @@ function drawSiren(time) {
 
     // Draw sound waves as arcs emanating from horn mouth
     const waveCx = W / 2;
-    const waveCy = pad + 3;
-    const maxRadius = 75;
+    const waveCy = wavePad + 3;
+    const maxRadius = wavePad + 20;
 
     ctx.save();
-    // Clip to upper region so waves don't paint over the siren body
     ctx.beginPath();
-    ctx.rect(0, 0, W, pad + 6);
+    ctx.rect(0, 0, W, wavePad + 6);
     ctx.clip();
 
     for (const wave of soundWaves) {
