@@ -115,6 +115,35 @@ body {
   color: white;
   text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
+#waveform-canvas {
+  width: 100%;
+  max-width: 400px;
+  height: 80px;
+  border-radius: var(--radius-sm);
+  background: #0d0d18;
+}
+.viz-toggle {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.viz-btn {
+  flex: 1;
+  max-width: 120px;
+  padding: 8px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+}
+.viz-btn.active {
+  border-color: var(--accent-blue);
+  background: rgba(33,150,243,0.15);
+}
 .freq-display {
   width: 100%;
   max-width: 400px;
@@ -502,6 +531,11 @@ input[type="range"]::-moz-range-thumb {
     <div class="rpm-bar-fill" id="rpm-bar"></div>
     <div class="rpm-label" id="rpm-label">0 RPM</div>
   </div>
+  <div class="viz-toggle">
+    <button class="viz-btn active" id="viz-wave">Wave</button>
+    <button class="viz-btn" id="viz-spectrum">Spectrum</button>
+  </div>
+  <canvas id="waveform-canvas" width="400" height="80"></canvas>
   <div class="freq-display" id="freq-display"></div>
   <div class="error-banner" id="error-banner"></div>
 </div>
@@ -879,7 +913,9 @@ let audioCtx = null;
 let sirenNode = null;
 let hornFilter = null;
 let gainNode = null;
+let analyser = null;
 let audioReady = false;
+let vizMode = 'wave'; // 'wave' or 'spectrum'
 
 async function initAudio() {
   try {
@@ -906,6 +942,11 @@ async function initAudio() {
     sirenNode.connect(hornFilter);
     hornFilter.connect(gainNode);
     gainNode.connect(audioCtx.destination);
+
+    // Analyser for waveform/spectrum visualizer (tap off gainNode, no onward connection needed)
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    gainNode.connect(analyser);
 
     sirenNode.port.onmessage = (e) => {
       if (e.data.type === 'telemetry') {
@@ -984,6 +1025,89 @@ function setupCanvas() {
   canvas.style.width = w + 'px';
   canvas.style.height = h + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// --- Waveform / Spectrum visualizer ---
+const wfCanvas = document.getElementById('waveform-canvas');
+const wfCtx = wfCanvas.getContext('2d');
+
+function setupWaveformCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = wfCanvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  wfCanvas.width = w * dpr;
+  wfCanvas.height = h * dpr;
+  wfCanvas.style.width = w + 'px';
+  wfCanvas.style.height = h + 'px';
+  wfCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function drawWaveform() {
+  if (!analyser) return;
+
+  const rect = wfCanvas.getBoundingClientRect();
+  const W = rect.width;
+  const H = rect.height;
+  wfCtx.clearRect(0, 0, W, H);
+
+  if (vizMode === 'wave') {
+    // --- Waveform (oscilloscope) mode ---
+    const bufLen = analyser.frequencyBinCount;
+    const data = new Uint8Array(bufLen);
+    analyser.getByteTimeDomainData(data);
+
+    wfCtx.lineWidth = 2;
+    wfCtx.strokeStyle = '#4ECDC4'; // cyan/green
+    wfCtx.beginPath();
+
+    const sliceW = W / bufLen;
+    let x = 0;
+    for (let i = 0; i < bufLen; i++) {
+      const v = data[i] / 128.0; // 0-2 range, 1 = center
+      const y = (v * H) / 2;
+      if (i === 0) {
+        wfCtx.moveTo(x, y);
+      } else {
+        wfCtx.lineTo(x, y);
+      }
+      x += sliceW;
+    }
+    wfCtx.lineTo(W, H / 2);
+    wfCtx.stroke();
+
+    // Draw center line (dim)
+    wfCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+    wfCtx.lineWidth = 1;
+    wfCtx.beginPath();
+    wfCtx.moveTo(0, H / 2);
+    wfCtx.lineTo(W, H / 2);
+    wfCtx.stroke();
+  } else {
+    // --- Frequency spectrum (bar graph) mode ---
+    const bufLen = analyser.frequencyBinCount;
+    const data = new Uint8Array(bufLen);
+    analyser.getByteFrequencyData(data);
+
+    // Use a subset of bins for visual clarity (lower frequencies are more interesting)
+    const barCount = Math.min(64, bufLen);
+    const barW = W / barCount;
+
+    for (let i = 0; i < barCount; i++) {
+      // Map bar index to frequency bin (logarithmic-ish spread for lower frequencies)
+      const binIndex = Math.floor((i / barCount) * bufLen * 0.5);
+      const val = data[binIndex] / 255;
+      const barH = val * H;
+
+      // Cycle through RING_COLORS for the bars
+      const color = RING_COLORS[i % RING_COLORS.length];
+
+      wfCtx.fillStyle = color;
+      wfCtx.globalAlpha = 0.6 + val * 0.4;
+      wfCtx.fillRect(i * barW + 1, H - barH, barW - 2, barH);
+    }
+    wfCtx.globalAlpha = 1.0;
+  }
 }
 
 // Stored layout rects for click detection
@@ -1246,6 +1370,9 @@ function drawSiren(time) {
     freqHTML += `<span class="freq-chip" style="background:${color}55;border:1px solid ${color}">${freq} Hz</span>`;
   }
   freqDisplay.innerHTML = freqHTML;
+
+  // Draw waveform/spectrum visualizer
+  drawWaveform();
 
   requestAnimationFrame(drawSiren);
 }
@@ -1514,6 +1641,18 @@ document.querySelectorAll('.shape-btn').forEach(btn => {
   });
 });
 
+// --- Waveform visualizer toggle ---
+document.getElementById('viz-wave').addEventListener('click', () => {
+  vizMode = 'wave';
+  document.getElementById('viz-wave').classList.add('active');
+  document.getElementById('viz-spectrum').classList.remove('active');
+});
+document.getElementById('viz-spectrum').addEventListener('click', () => {
+  vizMode = 'spectrum';
+  document.getElementById('viz-spectrum').classList.add('active');
+  document.getElementById('viz-wave').classList.remove('active');
+});
+
 // --- Advanced controls ---
 document.getElementById('advanced-toggle').addEventListener('click', () => {
   const content = document.getElementById('advanced-content');
@@ -1775,11 +1914,15 @@ tapOverlay.addEventListener('click', async () => {
   }
   syncUIFromState();
   setupCanvas();
+  setupWaveformCanvas();
   requestAnimationFrame(drawSiren);
 });
 
 window.addEventListener('resize', () => {
-  if (audioReady) setupCanvas();
+  if (audioReady) {
+    setupCanvas();
+    setupWaveformCanvas();
+  }
 });
 </script>
 </body>
