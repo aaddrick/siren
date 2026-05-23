@@ -1760,6 +1760,81 @@ document.getElementById('btn-share').addEventListener('click', () => {
 });
 
 // ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+const PRESET_KEYS = Object.keys(PRESETS); // ['thunderbolt', 'city', 'airraid', 'simple']
+
+document.addEventListener('keydown', (e) => {
+  // Don't fire shortcuts while the tap overlay is showing
+  if (!document.getElementById('tap-overlay').classList.contains('hidden')) return;
+
+  // Don't fire shortcuts while a modal is open
+  if (document.querySelector('.modal-overlay.open')) return;
+
+  // Don't fire shortcuts when focus is in a text input
+  const tag = document.activeElement?.tagName?.toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+  const key = e.key;
+
+  // Space — Start/Stop toggle
+  if (key === ' ') {
+    e.preventDefault();
+    btnStart.click();
+    return;
+  }
+
+  // 1/2/3 — Switch mode (Steady/Wail/Alert)
+  const modeMap = { '1': 'steady', '2': 'wail', '3': 'alert' };
+  if (modeMap[key]) {
+    const modeBtn = document.querySelector(`.mode-btn[data-mode="${modeMap[key]}"]`);
+    if (modeBtn) modeBtn.click();
+    return;
+  }
+
+  // Up/Down arrows — Adjust speed (RPM)
+  if (key === 'ArrowUp' || key === 'ArrowDown') {
+    e.preventDefault();
+    const step = parseInt(speedSlider.step) || 50;
+    const min = parseInt(speedSlider.min);
+    const max = parseInt(speedSlider.max);
+    let val = parseInt(speedSlider.value);
+    if (key === 'ArrowUp') {
+      val = Math.min(max, val + step);
+    } else {
+      val = Math.max(min, val - step);
+    }
+    speedSlider.value = val;
+    speedSlider.dispatchEvent(new Event('input'));
+    return;
+  }
+
+  // [ / ] — Cycle through presets
+  if (key === '[' || key === ']') {
+    let currentIndex = state.activePreset ? PRESET_KEYS.indexOf(state.activePreset) : -1;
+    if (key === ']') {
+      currentIndex = (currentIndex + 1) % PRESET_KEYS.length;
+    } else {
+      currentIndex = (currentIndex - 1 + PRESET_KEYS.length) % PRESET_KEYS.length;
+    }
+    loadPreset(PRESET_KEYS[currentIndex]);
+    return;
+  }
+
+  // S — Save
+  if (key === 's' || key === 'S') {
+    document.getElementById('btn-save').click();
+    return;
+  }
+
+  // L — Load
+  if (key === 'l' || key === 'L') {
+    document.getElementById('btn-load').click();
+    return;
+  }
+});
+
+// ============================================================
 // INITIALIZATION
 // ============================================================
 const tapOverlay = document.getElementById('tap-overlay');
