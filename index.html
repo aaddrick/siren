@@ -361,6 +361,33 @@ input[type="range"]::-moz-range-thumb {
 .btn-save:hover, .btn-load:hover, .btn-share:hover {
   background: rgba(33,150,243,0.15);
 }
+.btn-record {
+  padding: 12px 16px;
+  border: 2px solid var(--accent-red);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--accent-red);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s;
+}
+.btn-record:hover {
+  background: rgba(244,67,54,0.15);
+}
+.btn-record:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.btn-record.recording {
+  background: rgba(244,67,54,0.2);
+  animation: record-pulse 1.2s ease-in-out infinite;
+}
+@keyframes record-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(244,67,54,0.3); border-color: var(--accent-red); }
+  50% { box-shadow: 0 0 16px rgba(244,67,54,0.7); border-color: #ff7961; }
+}
 
 /* --- Modal --- */
 .modal-overlay {
@@ -587,6 +614,7 @@ input[type="range"]::-moz-range-thumb {
     <button class="btn-save" id="btn-save">Save</button>
     <button class="btn-load" id="btn-load">Load</button>
     <button class="btn-share" id="btn-share">Copy Link</button>
+    <button class="btn-record" id="btn-record" disabled>Record</button>
   </div>
 </div>
 
@@ -941,6 +969,9 @@ let sirenNode = null;
 let hornFilter = null;
 let gainNode = null;
 let audioReady = false;
+let recordDest = null;
+let mediaRecorder = null;
+let recordedChunks = [];
 
 async function initAudio() {
   try {
@@ -964,9 +995,12 @@ async function initAudio() {
     gainNode = audioCtx.createGain();
     gainNode.gain.value = 1.0;
 
+    recordDest = audioCtx.createMediaStreamDestination();
+
     sirenNode.connect(hornFilter);
     hornFilter.connect(gainNode);
     gainNode.connect(audioCtx.destination);
+    gainNode.connect(recordDest);
 
     sirenNode.port.onmessage = (e) => {
       if (e.data.type === 'telemetry') {
@@ -979,6 +1013,7 @@ async function initAudio() {
     sendVolume();
 
     audioReady = true;
+    document.getElementById('btn-record').disabled = false;
   } catch (err) {
     const banner = document.getElementById('error-banner');
     banner.textContent = 'Could not start audio engine. Try using Chrome or Firefox!';
@@ -1777,6 +1812,59 @@ document.getElementById('btn-load').addEventListener('click', () => {
 });
 document.getElementById('load-cancel').addEventListener('click', () => {
   document.getElementById('load-modal').classList.remove('open');
+});
+
+// --- Recording ---
+const btnRecord = document.getElementById('btn-record');
+btnRecord.addEventListener('click', () => {
+  if (!audioReady || !recordDest) return;
+
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    // Stop recording
+    mediaRecorder.stop();
+    return;
+  }
+
+  // Start recording
+  recordedChunks = [];
+  const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+    ? 'audio/webm;codecs=opus'
+    : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+  const options = mimeType ? { mimeType } : {};
+
+  try {
+    mediaRecorder = new MediaRecorder(recordDest.stream, options);
+  } catch (err) {
+    console.error('MediaRecorder init failed:', err);
+    return;
+  }
+
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data.size > 0) recordedChunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = () => {
+    const ext = (mediaRecorder.mimeType || '').includes('webm') ? 'webm' : 'ogg';
+    const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    a.download = `Siren-Recording-${timestamp}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    btnRecord.textContent = 'Record';
+    btnRecord.classList.remove('recording');
+    mediaRecorder = null;
+    recordedChunks = [];
+  };
+
+  mediaRecorder.start();
+  btnRecord.textContent = 'Stop Rec';
+  btnRecord.classList.add('recording');
 });
 
 // --- URL sharing ---
