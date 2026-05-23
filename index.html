@@ -525,6 +525,16 @@ input[type="range"]::-moz-range-thumb {
   </div>
 
   <div class="control-group">
+    <label>Horn Shape</label>
+    <div class="mode-group" id="horn-shape-group">
+      <button class="mode-btn" data-horn="narrow"><span class="icon">&#x25B2;</span>Narrow</button>
+      <button class="mode-btn active" data-horn="wide"><span class="icon">&#x2312;</span>Wide</button>
+      <button class="mode-btn" data-horn="rectangular"><span class="icon">&#x25AC;</span>Square</button>
+      <button class="mode-btn" data-horn="none"><span class="icon">&#x25CB;</span>None</button>
+    </div>
+  </div>
+
+  <div class="control-group">
     <label>Rings</label>
     <div class="ring-controls" id="ring-controls"></div>
     <div style="margin-top:8px">
@@ -617,6 +627,13 @@ const RING_COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#A8E6CF'];
 const MAX_RINGS = 4;
 const STORAGE_KEY = 'sirenCreator_saves';
 
+const HORN_SHAPES = {
+  narrow:      { label: 'Narrow',  freq: 900, Q: 5.0, gain: 10 },
+  wide:        { label: 'Wide Bell', freq: 500, Q: 1.0, gain: 6 },
+  rectangular: { label: 'Square',  freq: 700, Q: 3.0, gain: 8 },
+  none:        { label: 'No Horn', freq: 1000, Q: 0.5, gain: 0 },
+};
+
 const PRESETS = {
   thunderbolt: {
     name: 'Tornado Siren',
@@ -630,7 +647,7 @@ const PRESETS = {
       wailPeriod: 12, wailMin: 0.35,
       alertPeriod: 7, alertDuty: 0.5,
     },
-    horn: { freq: 700, Q: 2.5 },
+    horn: { freq: 500, Q: 1.0, gain: 6, shape: 'wide' },
     volume: 0.7,
   },
   city: {
@@ -645,7 +662,7 @@ const PRESETS = {
       wailPeriod: 10, wailMin: 0.4,
       alertPeriod: 7, alertDuty: 0.5,
     },
-    horn: { freq: 650, Q: 2.0 },
+    horn: { freq: 700, Q: 3.0, gain: 8, shape: 'rectangular' },
     volume: 0.7,
   },
   airraid: {
@@ -660,7 +677,7 @@ const PRESETS = {
       wailPeriod: 15, wailMin: 0.3,
       alertPeriod: 7, alertDuty: 0.5,
     },
-    horn: { freq: 600, Q: 1.8 },
+    horn: { freq: 500, Q: 1.0, gain: 6, shape: 'wide' },
     volume: 0.7,
   },
   simple: {
@@ -674,7 +691,7 @@ const PRESETS = {
       wailPeriod: 10, wailMin: 0.4,
       alertPeriod: 7, alertDuty: 0.5,
     },
-    horn: { freq: 500, Q: 1.5 },
+    horn: { freq: 900, Q: 5.0, gain: 10, shape: 'narrow' },
     volume: 0.7,
   },
 };
@@ -693,7 +710,7 @@ const state = {
     wailPeriod: 10, wailMin: 0.4,
     alertPeriod: 7, alertDuty: 0.5,
   },
-  horn: { freq: 650, Q: 2.0 },
+  horn: { freq: 500, Q: 1.0, gain: 6, shape: 'wide' },
   volume: 0.7,
   selectedRing: 0,
   currentRPM: 0,
@@ -898,7 +915,7 @@ async function initAudio() {
     hornFilter.type = 'peaking';
     hornFilter.frequency.value = state.horn.freq;
     hornFilter.Q.value = state.horn.Q;
-    hornFilter.gain.value = 8;
+    hornFilter.gain.value = state.horn.gain ?? 8;
 
     gainNode = audioCtx.createGain();
     gainNode.gain.value = 1.0;
@@ -964,6 +981,7 @@ function updateHornFilter() {
   if (!hornFilter) return;
   hornFilter.frequency.value = state.horn.freq;
   hornFilter.Q.value = state.horn.Q;
+  hornFilter.gain.value = state.horn.gain ?? 8;
 }
 
 // ============================================================
@@ -1023,42 +1041,88 @@ function drawSiren(time) {
 
   let y = pad;
 
-  // === HORN (flared trapezoid) ===
-  const hornTopW = innerW * 0.9;
-  const hornBotW = innerW * 0.45;
-  const hornGrad = ctx.createLinearGradient(0, y, 0, y + hornH);
-  hornGrad.addColorStop(0, '#8B7355');
-  hornGrad.addColorStop(0.5, '#A08060');
-  hornGrad.addColorStop(1, '#6B5540');
-  ctx.beginPath();
-  ctx.moveTo(pad + (innerW - hornTopW) / 2, y);
-  ctx.lineTo(pad + (innerW + hornTopW) / 2, y);
-  ctx.lineTo(pad + (innerW + hornBotW) / 2, y + hornH);
-  ctx.lineTo(pad + (innerW - hornBotW) / 2, y + hornH);
-  ctx.closePath();
-  ctx.fillStyle = hornGrad;
-  ctx.fill();
-  ctx.strokeStyle = '#9B8365';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
+  // === HORN (shape-dependent) ===
+  const hornShape = state.horn.shape || 'wide';
 
-  // Horn opening (dark inside)
-  const openW = hornTopW * 0.75;
-  const openBotW = hornBotW * 0.5;
-  ctx.beginPath();
-  ctx.moveTo(pad + (innerW - openW) / 2, y + 3);
-  ctx.lineTo(pad + (innerW + openW) / 2, y + 3);
-  ctx.lineTo(pad + (innerW + openBotW) / 2, y + hornH - 2);
-  ctx.lineTo(pad + (innerW - openBotW) / 2, y + hornH - 2);
-  ctx.closePath();
-  ctx.fillStyle = '#1a1210';
-  ctx.fill();
+  if (hornShape !== 'none') {
+    let hornTopW, hornBotW;
 
-  // Label
-  ctx.fillStyle = '#c0a080';
-  ctx.font = `bold 10px ${fontFamily}`;
-  ctx.textAlign = 'center';
-  ctx.fillText('HORN', W / 2, y + hornH - 8);
+    if (hornShape === 'narrow') {
+      hornTopW = innerW * 0.5;
+      hornBotW = innerW * 0.35;
+    } else if (hornShape === 'wide') {
+      hornTopW = innerW * 0.95;
+      hornBotW = innerW * 0.3;
+    } else if (hornShape === 'rectangular') {
+      hornTopW = innerW * 0.6;
+      hornBotW = innerW * 0.6;
+    } else {
+      hornTopW = innerW * 0.9;
+      hornBotW = innerW * 0.45;
+    }
+
+    const hornGrad = ctx.createLinearGradient(0, y, 0, y + hornH);
+    hornGrad.addColorStop(0, '#8B7355');
+    hornGrad.addColorStop(0.5, '#A08060');
+    hornGrad.addColorStop(1, '#6B5540');
+
+    ctx.beginPath();
+    if (hornShape === 'wide') {
+      // Flared bell with slight curve
+      const lTop = pad + (innerW - hornTopW) / 2;
+      const rTop = pad + (innerW + hornTopW) / 2;
+      const lBot = pad + (innerW - hornBotW) / 2;
+      const rBot = pad + (innerW + hornBotW) / 2;
+      ctx.moveTo(lTop, y);
+      ctx.lineTo(rTop, y);
+      ctx.quadraticCurveTo(rBot + (rTop - rBot) * 0.3, y + hornH * 0.7, rBot, y + hornH);
+      ctx.lineTo(lBot, y + hornH);
+      ctx.quadraticCurveTo(lBot - (lBot - lTop) * 0.3, y + hornH * 0.7, lTop, y);
+    } else {
+      // Straight-sided trapezoid (narrow, rectangular, or fallback)
+      ctx.moveTo(pad + (innerW - hornTopW) / 2, y);
+      ctx.lineTo(pad + (innerW + hornTopW) / 2, y);
+      ctx.lineTo(pad + (innerW + hornBotW) / 2, y + hornH);
+      ctx.lineTo(pad + (innerW - hornBotW) / 2, y + hornH);
+    }
+    ctx.closePath();
+    ctx.fillStyle = hornGrad;
+    ctx.fill();
+    ctx.strokeStyle = '#9B8365';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Horn opening (dark inside)
+    const openW = hornTopW * 0.75;
+    const openBotW = hornBotW * 0.5;
+    ctx.beginPath();
+    if (hornShape === 'wide') {
+      const lTop = pad + (innerW - openW) / 2;
+      const rTop = pad + (innerW + openW) / 2;
+      const lBot = pad + (innerW - openBotW) / 2;
+      const rBot = pad + (innerW + openBotW) / 2;
+      ctx.moveTo(lTop, y + 3);
+      ctx.lineTo(rTop, y + 3);
+      ctx.quadraticCurveTo(rBot + (rTop - rBot) * 0.3, y + hornH * 0.65, rBot, y + hornH - 2);
+      ctx.lineTo(lBot, y + hornH - 2);
+      ctx.quadraticCurveTo(lBot - (lBot - lTop) * 0.3, y + hornH * 0.65, lTop, y + 3);
+    } else {
+      ctx.moveTo(pad + (innerW - openW) / 2, y + 3);
+      ctx.lineTo(pad + (innerW + openW) / 2, y + 3);
+      ctx.lineTo(pad + (innerW + openBotW) / 2, y + hornH - 2);
+      ctx.lineTo(pad + (innerW - openBotW) / 2, y + hornH - 2);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#1a1210';
+    ctx.fill();
+
+    // Label
+    const shapeLabel = HORN_SHAPES[hornShape] ? HORN_SHAPES[hornShape].label : 'HORN';
+    ctx.fillStyle = '#c0a080';
+    ctx.font = `bold 10px ${fontFamily}`;
+    ctx.textAlign = 'center';
+    ctx.fillText(shapeLabel.toUpperCase(), W / 2, y + hornH - 8);
+  }
 
   y += hornH;
 
@@ -1370,14 +1434,31 @@ speedSlider.addEventListener('input', () => {
 });
 
 // --- Mode buttons ---
-document.querySelectorAll('.mode-btn').forEach(btn => {
+document.querySelectorAll('[data-mode]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     state.motor.mode = btn.dataset.mode;
     sendMotor();
     document.getElementById('wail-speed-group').style.display =
       state.motor.mode === 'wail' ? '' : 'none';
+    state.activePreset = null;
+    updatePresetUI();
+  });
+});
+
+// --- Horn shape buttons ---
+document.querySelectorAll('[data-horn]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-horn]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const shape = btn.dataset.horn;
+    const params = HORN_SHAPES[shape];
+    state.horn.shape = shape;
+    state.horn.freq = params.freq;
+    state.horn.Q = params.Q;
+    state.horn.gain = params.gain;
+    updateHornFilter();
     state.activePreset = null;
     updatePresetUI();
   });
@@ -1570,7 +1651,7 @@ function syncUIFromState() {
   speedSlider.value = state.motor.maxRPM;
   speedDisplay.textContent = state.motor.maxRPM + ' RPM';
 
-  document.querySelectorAll('.mode-btn').forEach(b => {
+  document.querySelectorAll('[data-mode]').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === state.motor.mode);
   });
 
@@ -1592,6 +1673,11 @@ function syncUIFromState() {
 
   document.getElementById('wail-speed-group').style.display =
     state.motor.mode === 'wail' ? '' : 'none';
+
+  // Horn shape buttons
+  document.querySelectorAll('[data-horn]').forEach(b => {
+    b.classList.toggle('active', b.dataset.horn === (state.horn.shape || 'wide'));
+  });
 
   btnStart.textContent = state.motor.running ? 'STOP' : 'START';
   btnStart.classList.toggle('running', state.motor.running);
