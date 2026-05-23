@@ -629,6 +629,21 @@ input[type="range"]::-moz-range-thumb {
     <input type="range" id="volume-slider" min="0" max="100" value="70" step="1">
   </div>
 
+  <div class="control-group">
+    <label>Distance <span class="value-display" id="distance-display">0%</span></label>
+    <input type="range" id="distance-slider" min="0" max="100" value="0" step="1">
+  </div>
+
+  <div class="control-group">
+    <label>Environment</label>
+    <div class="mode-group">
+      <button class="mode-btn env-btn active" data-env="outdoor"><span class="icon">&#x1F33E;</span>Outdoor</button>
+      <button class="mode-btn env-btn" data-env="downtown"><span class="icon">&#x1F3D9;&#xFE0F;</span>Downtown</button>
+      <button class="mode-btn env-btn" data-env="indoor"><span class="icon">&#x1F3E0;</span>Indoor</button>
+      <button class="mode-btn env-btn" data-env="tornado"><span class="icon">&#x1F32A;&#xFE0F;</span>Tornado</button>
+    </div>
+  </div>
+
   <button class="advanced-toggle" id="advanced-toggle">Advanced Settings &#x25BC;</button>
   <div class="advanced-content" id="advanced-content">
     <div class="control-group">
@@ -821,6 +836,14 @@ const PRESETS = {
   },
 };
 
+// Environment presets: reverb IR params and filter tweaks
+const ENV_PRESETS = {
+  outdoor:  { duration: 0.8, decay: 3, reverbSend: 0.15, filterMul: 1.0, tornado: false },
+  downtown: { duration: 1.5, decay: 2, reverbSend: 0.35, filterMul: 1.0, tornado: false },
+  indoor:   { duration: 0.5, decay: 4, reverbSend: 0.20, filterMul: 0.7, tornado: false },
+  tornado:  { duration: 0.8, decay: 3, reverbSend: 0.15, filterMul: 1.0, tornado: true  },
+};
+
 // ============================================================
 // APP STATE
 // ============================================================
@@ -841,6 +864,7 @@ const state = {
   selectedRing: 0,
   currentRPM: 0,
   activePreset: null,
+  environment: { distance: 0, preset: 'outdoor' },
 };
 
 // ============================================================
@@ -1054,6 +1078,31 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let vizMode = 'wave';
 
+// Ambient environment nodes
+let distanceFilter = null;
+let distanceGain = null;
+let reverbSendGain = null;
+let convolverNode = null;
+
+// Tornado ambient noise nodes
+let tornadoWindOsc = null;
+let tornadoWindFilter = null;
+let tornadoWindGain = null;
+let tornadoNoiseSource = null;
+let tornadoNoiseFilter = null;
+let tornadoNoiseGain = null;
+let tornadoNoiseBuffer = null;
+
+function createImpulseResponse(duration, decay) {
+  const len = audioCtx.sampleRate * duration;
+  const buf = audioCtx.createBuffer(2, len, audioCtx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+  }
+  return buf;
+}
+
 async function initAudio() {
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
@@ -1078,12 +1127,38 @@ async function initAudio() {
 
     recordDest = audioCtx.createMediaStreamDestination();
 
+    // Distance simulation: lowpass filter to muffle at distance
+    distanceFilter = audioCtx.createBiquadFilter();
+    distanceFilter.type = 'lowpass';
+    distanceFilter.frequency.value = 20000;
+    distanceFilter.Q.value = 0.7;
+
+    // Distance gain: attenuate at distance
+    distanceGain = audioCtx.createGain();
+    distanceGain.gain.value = 1.0;
+
+    // Reverb via convolver
+    const envPreset = ENV_PRESETS[state.environment.preset] || ENV_PRESETS.outdoor;
+    convolverNode = audioCtx.createConvolver();
+    convolverNode.buffer = createImpulseResponse(envPreset.duration, envPreset.decay);
+
+    reverbSendGain = audioCtx.createGain();
+    reverbSendGain.gain.value = envPreset.reverbSend;
+
+    // Chain: sirenNode → hornFilter → gainNode → distanceFilter → distanceGain → destination
+    //        distanceGain → reverbSendGain → convolver → destination
     sirenNode.connect(hornFilter);
     hornFilter.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    gainNode.connect(recordDest);
+    gainNode.connect(distanceFilter);
+    distanceFilter.connect(distanceGain);
+    distanceGain.connect(audioCtx.destination);
+    distanceGain.connect(recordDest);
 
-    // Analyser for waveform/spectrum visualizer (tap off gainNode, no onward connection needed)
+    distanceGain.connect(reverbSendGain);
+    reverbSendGain.connect(convolverNode);
+    convolverNode.connect(audioCtx.destination);
+
+    // Analyser for waveform/spectrum visualizer
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 2048;
     gainNode.connect(analyser);
@@ -1149,6 +1224,105 @@ function updateHornFilter() {
   hornFilter.frequency.value = state.horn.freq;
   hornFilter.Q.value = state.horn.Q;
   hornFilter.gain.value = state.horn.gain ?? 8;
+}
+
+function updateDistance(d) {
+  if (!distanceFilter || !distanceGain || !reverbSendGain) return;
+  const envPreset = ENV_PRESETS[state.environment.preset] || ENV_PRESETS.outdoor;
+  const filterMul = envPreset.filterMul;
+  // Exponential mapping: close = full freq/volume, far = muffled/quiet
+  distanceFilter.frequency.value = 20000 * Math.pow(800 / 20000, d) * filterMul;
+  distanceGain.gain.value = 1.0 * Math.pow(0.15, d);
+  reverbSendGain.gain.value = envPreset.reverbSend + d * 0.4;
+}
+
+function applyEnvironmentPreset(presetKey) {
+  const envPreset = ENV_PRESETS[presetKey];
+  if (!envPreset) return;
+  state.environment.preset = presetKey;
+
+  // Rebuild convolver IR for the new environment
+  if (convolverNode && audioCtx) {
+    convolverNode.buffer = createImpulseResponse(envPreset.duration, envPreset.decay);
+  }
+
+  // Re-apply distance with new preset parameters
+  updateDistance(state.environment.distance);
+
+  // Handle tornado ambient noise
+  if (envPreset.tornado) {
+    startTornadoNoise();
+  } else {
+    stopTornadoNoise();
+  }
+}
+
+function startTornadoNoise() {
+  if (!audioCtx || tornadoWindOsc) return;
+
+  // Wind: low-frequency oscillator through a lowpass filter
+  tornadoWindOsc = audioCtx.createOscillator();
+  tornadoWindOsc.type = 'sawtooth';
+  tornadoWindOsc.frequency.value = 60;
+
+  tornadoWindFilter = audioCtx.createBiquadFilter();
+  tornadoWindFilter.type = 'lowpass';
+  tornadoWindFilter.frequency.value = 400;
+  tornadoWindFilter.Q.value = 1.0;
+
+  tornadoWindGain = audioCtx.createGain();
+  tornadoWindGain.gain.value = 0.06;
+
+  tornadoWindOsc.connect(tornadoWindFilter);
+  tornadoWindFilter.connect(tornadoWindGain);
+  tornadoWindGain.connect(audioCtx.destination);
+  tornadoWindOsc.start();
+
+  // Rain: filtered white noise
+  const noiseDuration = 4;
+  const noiseLen = audioCtx.sampleRate * noiseDuration;
+  tornadoNoiseBuffer = audioCtx.createBuffer(1, noiseLen, audioCtx.sampleRate);
+  const noiseData = tornadoNoiseBuffer.getChannelData(0);
+  for (let i = 0; i < noiseLen; i++) noiseData[i] = Math.random() * 2 - 1;
+
+  tornadoNoiseSource = audioCtx.createBufferSource();
+  tornadoNoiseSource.buffer = tornadoNoiseBuffer;
+  tornadoNoiseSource.loop = true;
+
+  tornadoNoiseFilter = audioCtx.createBiquadFilter();
+  tornadoNoiseFilter.type = 'bandpass';
+  tornadoNoiseFilter.frequency.value = 3000;
+  tornadoNoiseFilter.Q.value = 0.5;
+
+  tornadoNoiseGain = audioCtx.createGain();
+  tornadoNoiseGain.gain.value = 0.04;
+
+  tornadoNoiseSource.connect(tornadoNoiseFilter);
+  tornadoNoiseFilter.connect(tornadoNoiseGain);
+  tornadoNoiseGain.connect(audioCtx.destination);
+  tornadoNoiseSource.start();
+}
+
+function stopTornadoNoise() {
+  if (tornadoWindOsc) {
+    try { tornadoWindOsc.stop(); } catch (e) {}
+    tornadoWindOsc.disconnect();
+    tornadoWindFilter.disconnect();
+    tornadoWindGain.disconnect();
+    tornadoWindOsc = null;
+    tornadoWindFilter = null;
+    tornadoWindGain = null;
+  }
+  if (tornadoNoiseSource) {
+    try { tornadoNoiseSource.stop(); } catch (e) {}
+    tornadoNoiseSource.disconnect();
+    tornadoNoiseFilter.disconnect();
+    tornadoNoiseGain.disconnect();
+    tornadoNoiseSource = null;
+    tornadoNoiseFilter = null;
+    tornadoNoiseGain = null;
+    tornadoNoiseBuffer = null;
+  }
 }
 
 // ============================================================
@@ -1797,6 +1971,25 @@ volumeSlider.addEventListener('input', () => {
   sendVolume();
 });
 
+// --- Distance slider ---
+const distanceSlider = document.getElementById('distance-slider');
+const distanceDisplay = document.getElementById('distance-display');
+distanceSlider.addEventListener('input', () => {
+  const d = parseInt(distanceSlider.value) / 100;
+  state.environment.distance = d;
+  distanceDisplay.textContent = distanceSlider.value + '%';
+  updateDistance(d);
+});
+
+// --- Environment buttons ---
+document.querySelectorAll('.env-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.env-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyEnvironmentPreset(btn.dataset.env);
+  });
+});
+
 // --- Ring controls ---
 function updateRingUI() {
   const container = document.getElementById('ring-controls');
@@ -2018,6 +2211,13 @@ function syncUIFromState() {
   btnStart.textContent = state.motor.running ? 'STOP' : 'START';
   btnStart.classList.toggle('running', state.motor.running);
 
+  // Environment controls
+  distanceSlider.value = Math.round(state.environment.distance * 100);
+  distanceDisplay.textContent = Math.round(state.environment.distance * 100) + '%';
+  document.querySelectorAll('.env-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.env === state.environment.preset);
+  });
+
   updateRingUI();
   updatePresetUI();
 }
@@ -2053,6 +2253,7 @@ function saveSiren(name) {
       motor: { ...state.motor },
       horn: { ...state.horn },
       volume: state.volume,
+      environment: { ...state.environment },
     },
   });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
@@ -2066,6 +2267,11 @@ function loadSiren(index) {
   Object.assign(state.motor, save.state.motor);
   state.horn = { ...save.state.horn };
   state.volume = save.state.volume;
+  if (save.state.environment) {
+    state.environment = { ...save.state.environment };
+  } else {
+    state.environment = { distance: 0, preset: 'outdoor' };
+  }
   state.selectedRing = 0;
   state.activePreset = null;
 
@@ -2073,6 +2279,7 @@ function loadSiren(index) {
   sendMotor();
   sendVolume();
   updateHornFilter();
+  applyEnvironmentPreset(state.environment.preset);
   syncUIFromState();
 }
 
@@ -2201,6 +2408,7 @@ function encodeStateToHash() {
     m: state.motor,
     h: state.horn,
     vol: state.volume,
+    env: state.environment,
   };
   return '#config=' + btoa(JSON.stringify(data));
 }
@@ -2216,6 +2424,11 @@ function loadFromHash() {
     state.motor.running = false;
     state.horn = { ...data.h };
     state.volume = data.vol;
+    if (data.env) {
+      state.environment = { ...data.env };
+    } else {
+      state.environment = { distance: 0, preset: 'outdoor' };
+    }
     state.selectedRing = 0;
     state.activePreset = null;
     return true;
@@ -2322,6 +2535,8 @@ tapOverlay.addEventListener('click', async () => {
     sendMotor();
     sendVolume();
     updateHornFilter();
+    applyEnvironmentPreset(state.environment.preset);
+    updateDistance(state.environment.distance);
   }
   syncUIFromState();
   setupCanvas();
