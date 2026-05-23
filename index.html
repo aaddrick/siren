@@ -579,6 +579,10 @@ input[type="range"]::-moz-range-thumb {
   <button class="preset-btn" data-preset="city"><span class="icon">&#x1F3D9;&#xFE0F;</span>City</button>
   <button class="preset-btn" data-preset="airraid"><span class="icon">&#x2708;&#xFE0F;</span>Air Raid</button>
   <button class="preset-btn" data-preset="simple"><span class="icon">&#x1F514;</span>Simple</button>
+  <button class="preset-btn" data-preset="chrysler"><span class="icon">&#x1F4A3;</span>Chrysler</button>
+  <button class="preset-btn" data-preset="model2"><span class="icon">&#x1F4E1;</span>Model 2</button>
+  <button class="preset-btn" data-preset="federal500"><span class="icon">&#x1F692;</span>Federal 500</button>
+  <button class="preset-btn" data-preset="m65"><span class="icon">&#x1F3DA;&#xFE0F;</span>Sentry M-65</button>
   <div class="save-load-btns">
     <button class="btn-save" id="btn-save">Save</button>
     <button class="btn-load" id="btn-load">Load</button>
@@ -675,6 +679,63 @@ const PRESETS = {
       alertPeriod: 7, alertDuty: 0.5,
     },
     horn: { freq: 500, Q: 1.5 },
+    volume: 0.7,
+  },
+  chrysler: {
+    name: 'Chrysler Air Raid',
+    rings: [
+      { portCount: 6, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    ],
+    motor: {
+      maxRPM: 2950, mode: 'steady',
+      tauUp: 30, tauDown: 60,
+      wailPeriod: 10, wailMin: 0.4,
+      alertPeriod: 7, alertDuty: 0.5,
+    },
+    horn: { freq: 400, Q: 1.5 },
+    volume: 0.7,
+  },
+  model2: {
+    name: 'Federal Model 2',
+    rings: [
+      { portCount: 5, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 6, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    ],
+    motor: {
+      maxRPM: 3450, mode: 'wail',
+      tauUp: 10, tauDown: 15,
+      wailPeriod: 12, wailMin: 0.35,
+      alertPeriod: 7, alertDuty: 0.5,
+    },
+    horn: { freq: 600, Q: 2.0 },
+    volume: 0.7,
+  },
+  federal500: {
+    name: 'Federal 500',
+    rings: [
+      { portCount: 10, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    ],
+    motor: {
+      maxRPM: 3450, mode: 'steady',
+      tauUp: 6, tauDown: 10,
+      wailPeriod: 10, wailMin: 0.4,
+      alertPeriod: 7, alertDuty: 0.5,
+    },
+    horn: { freq: 550, Q: 2.2 },
+    volume: 0.7,
+  },
+  m65: {
+    name: 'Sentry M-65',
+    rings: [
+      { portCount: 8, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    ],
+    motor: {
+      maxRPM: 3000, mode: 'wail',
+      tauUp: 15, tauDown: 25,
+      wailPeriod: 15, wailMin: 0.30,
+      alertPeriod: 7, alertDuty: 0.5,
+    },
+    horn: { freq: 450, Q: 1.8 },
     volume: 0.7,
   },
 };
