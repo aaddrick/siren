@@ -514,6 +514,173 @@ input[type="range"]::-moz-range-thumb {
 }
 .error-banner.show { display: block; }
 
+/* --- Build/Tune Mode Toggle --- */
+.mode-toggle-bar {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 8px;
+}
+.mode-toggle-btn {
+  padding: 8px 24px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--bg-control);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.mode-toggle-btn.active {
+  border-color: var(--accent-orange);
+  background: rgba(255, 152, 0, 0.15);
+  color: var(--text-accent);
+}
+.mode-toggle-btn:hover { background: rgba(255,255,255,0.05); }
+
+/* --- Build Mode --- */
+#tune-panel { display: flex; flex-direction: column; gap: 12px; }
+.build-panel { display: flex; flex-direction: column; gap: 12px; }
+
+.parts-bin {
+  background: var(--bg-control);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+.parts-bin h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.parts-section { margin-bottom: 12px; }
+.parts-section:last-child { margin-bottom: 0; }
+.parts-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-orange);
+  margin-bottom: 6px;
+}
+.parts-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.part-card {
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 2px solid #444;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: grab;
+  transition: border-color 0.15s, transform 0.1s;
+  user-select: none;
+}
+.part-card:hover {
+  border-color: var(--accent-blue);
+  transform: scale(1.05);
+}
+.part-card:active { cursor: grabbing; }
+.part-card .part-label { display: block; font-weight: 700; }
+.part-card .part-detail { font-size: 11px; color: #888; }
+
+.assembly-area {
+  background: var(--bg-control);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+.assembly-area h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-green);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.assembly-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.assembly-slot {
+  min-height: 60px;
+  border: 2px dashed #555;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.assembly-slot .slot-label {
+  color: #666;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+.assembly-slot.drag-over {
+  border-color: var(--accent-green);
+  background: rgba(76, 175, 80, 0.1);
+}
+.assembly-slot.filled {
+  border-style: solid;
+  border-color: var(--accent-blue);
+  background: rgba(33, 150, 243, 0.08);
+  justify-content: space-between;
+}
+.assembly-slot.filled .slot-part-name {
+  font-weight: 700;
+  color: var(--text-accent);
+  font-size: 14px;
+}
+.assembly-slot.filled .slot-part-detail {
+  font-size: 12px;
+  color: #888;
+}
+.assembly-slot .slot-remove {
+  padding: 4px 10px;
+  border: 1px solid var(--accent-red);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-red);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.assembly-slot .slot-remove:hover {
+  background: rgba(244, 67, 54, 0.15);
+}
+.assembly-message {
+  text-align: center;
+  font-size: 13px;
+  color: var(--accent-orange);
+  padding: 8px;
+  font-weight: 600;
+}
+.build-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.btn-clear-assembly {
+  padding: 10px 24px;
+  border: 2px solid var(--accent-red);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-red);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-clear-assembly:hover {
+  background: rgba(244, 67, 54, 0.15);
+}
+
 /* --- Tap overlay --- */
 .tap-overlay {
   position: fixed;
@@ -549,6 +716,10 @@ input[type="range"]::-moz-range-thumb {
 <!-- Title -->
 <div class="title-bar">
   <h1>SIREN CREATOR</h1>
+  <div class="mode-toggle-bar">
+    <button class="mode-toggle-btn" id="btn-mode-build" data-appmode="build">&#x1F527; Build</button>
+    <button class="mode-toggle-btn active" id="btn-mode-tune" data-appmode="tune">&#x1F39B;&#xFE0F; Tune</button>
+  </div>
 </div>
 
 <!-- Canvas Area -->
@@ -569,12 +740,14 @@ input[type="range"]::-moz-range-thumb {
 
 <!-- Controls -->
 <div class="controls">
-  <button class="btn-start" id="btn-start">START</button>
+  <!-- Tune Panel (default visible) -->
+  <div id="tune-panel">
+    <button class="btn-start" id="btn-start">START</button>
 
-  <div class="control-group">
-    <label>How Fast? <span class="value-display" id="speed-display">3450 RPM</span></label>
-    <input type="range" id="speed-slider" min="500" max="10000" value="3450" step="50">
-  </div>
+    <div class="control-group">
+      <label>How Fast? <span class="value-display" id="speed-display">3450 RPM</span></label>
+      <input type="range" id="speed-slider" min="500" max="10000" value="3450" step="50">
+    </div>
 
   <div class="control-group">
     <label>Mode</label>
@@ -595,31 +768,52 @@ input[type="range"]::-moz-range-thumb {
       <button class="mode-btn" data-horn="rectangular"><span class="icon">&#x25AC;</span>Square</button>
       <button class="mode-btn" data-horn="none"><span class="icon">&#x25CB;</span>None</button>
     </div>
-  </div>
 
-  <div class="control-group">
-    <label>Rings</label>
-    <div class="ring-controls" id="ring-controls"></div>
-    <div style="margin-top:8px">
-      <button class="btn-small" id="btn-add-ring">+ Add Ring</button>
+    <div class="control-group">
+      <label>Rings</label>
+      <div class="ring-controls" id="ring-controls"></div>
+      <div style="margin-top:8px">
+        <button class="btn-small" id="btn-add-ring">+ Add Ring</button>
+      </div>
     </div>
-  </div>
 
-  <div class="control-group" id="selected-ring-controls" style="display:none">
-    <label>Selected Ring <span class="value-display" id="ring-freq-display"></span></label>
-    <div style="margin-bottom:10px">
-      <label style="font-size:13px">Holes: <span class="value-display" id="port-count-display">10</span></label>
-      <input type="range" id="port-count-slider" min="4" max="16" value="10" step="1">
+    <div class="control-group" id="selected-ring-controls" style="display:none">
+      <label>Selected Ring <span class="value-display" id="ring-freq-display"></span></label>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px">Holes: <span class="value-display" id="port-count-display">10</span></label>
+        <input type="range" id="port-count-slider" min="4" max="16" value="10" step="1">
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:13px">Hole Size: <span class="value-display" id="duty-display">50%</span></label>
+        <input type="range" id="duty-slider" min="20" max="80" value="50" step="1">
+      </div>
+      <div>
+        <label style="font-size:13px">Hole Shape:</label>
+        <div class="shape-toggle">
+          <button class="shape-btn active" data-shape="rectangular">&#x25A0; Square</button>
+          <button class="shape-btn" data-shape="round">&#x25CF; Round</button>
+        </div>
+      </div>
     </div>
-    <div style="margin-bottom:10px">
-      <label style="font-size:13px">Hole Size: <span class="value-display" id="duty-display">50%</span></label>
-      <input type="range" id="duty-slider" min="20" max="80" value="50" step="1">
+
+    <div class="control-group">
+      <label>Volume <span class="value-display" id="volume-display">70%</span></label>
+      <input type="range" id="volume-slider" min="0" max="100" value="70" step="1">
     </div>
-    <div>
-      <label style="font-size:13px">Hole Shape:</label>
-      <div class="shape-toggle">
-        <button class="shape-btn active" data-shape="rectangular">&#x25A0; Square</button>
-        <button class="shape-btn" data-shape="round">&#x25CF; Round</button>
+
+    <button class="advanced-toggle" id="advanced-toggle">Advanced Settings &#x25BC;</button>
+    <div class="advanced-content" id="advanced-content">
+      <div class="control-group">
+        <label>Motor Power <span class="value-display" id="power-display">50%</span></label>
+        <input type="range" id="power-slider" min="10" max="100" value="50" step="1">
+      </div>
+      <div class="control-group">
+        <label>Rotor Weight <span class="value-display" id="weight-display">50%</span></label>
+        <input type="range" id="weight-slider" min="10" max="100" value="50" step="1">
+      </div>
+      <div class="control-group" id="wail-speed-group" style="display:none">
+        <label>Wail Speed <span class="value-display" id="wail-display">10s</span></label>
+        <input type="range" id="wail-slider" min="4" max="20" value="10" step="1">
       </div>
     </div>
   </div>
@@ -659,6 +853,10 @@ input[type="range"]::-moz-range-thumb {
       <input type="range" id="wail-slider" min="4" max="20" value="10" step="1">
     </div>
   </div>
+  </div><!-- end tune-panel -->
+
+  <!-- Build Panel (hidden by default) -->
+  <div id="build-panel" style="display:none"></div>
 </div>
 
 <!-- Presets Bar -->
@@ -845,6 +1043,26 @@ const ENV_PRESETS = {
 };
 
 // ============================================================
+// PARTS DATA (for Build mode)
+// ============================================================
+const PARTS = {
+  motors: [
+    { id: 'motor-small', label: 'Small', maxRPM: 3000, tauUp: 5 },
+    { id: 'motor-medium', label: 'Medium', maxRPM: 5000, tauUp: 8 },
+    { id: 'motor-large', label: 'Large', maxRPM: 8000, tauUp: 15 },
+  ],
+  rotors: [
+    { id: 'rotor-thin', label: 'Thin (Fast)', tauDown: 6, portCount: 8 },
+    { id: 'rotor-thick', label: 'Thick (Heavy)', tauDown: 15, portCount: 10 },
+  ],
+  horns: [
+    { id: 'horn-narrow', label: 'Narrow Cone', freq: 900, Q: 5.0 },
+    { id: 'horn-wide', label: 'Wide Bell', freq: 500, Q: 1.0 },
+    { id: 'horn-square', label: 'Square', freq: 700, Q: 3.0 },
+  ],
+};
+
+// ============================================================
 // APP STATE
 // ============================================================
 const state = {
@@ -865,6 +1083,8 @@ const state = {
   currentRPM: 0,
   activePreset: null,
   environment: { distance: 0, preset: 'outdoor' },
+  appMode: 'tune',
+  assembly: { motor: null, rotor: null, horn: null },
 };
 
 // ============================================================
@@ -2521,6 +2741,260 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 });
+
+// ============================================================
+// BUILD MODE
+// ============================================================
+
+const tunePanel = document.getElementById('tune-panel');
+const buildPanel = document.getElementById('build-panel');
+
+// --- Mode toggle ---
+document.querySelectorAll('.mode-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const newMode = btn.dataset.appmode;
+    if (newMode === state.appMode) return;
+    document.querySelectorAll('.mode-toggle-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    switchMode(newMode);
+  });
+});
+
+function switchMode(newMode) {
+  const oldMode = state.appMode;
+  state.appMode = newMode;
+
+  if (newMode === 'build') {
+    // Sync state to assembly (best-effort)
+    syncStateToAssembly();
+    tunePanel.style.display = 'none';
+    buildPanel.style.display = '';
+    renderBuildPanel();
+  } else {
+    // Sync assembly to state
+    syncAssemblyToState();
+    buildPanel.style.display = 'none';
+    tunePanel.style.display = '';
+    syncUIFromState();
+  }
+}
+
+function syncStateToAssembly() {
+  // Motor: match by maxRPM
+  const bestMotor = PARTS.motors.reduce((best, m) =>
+    Math.abs(m.maxRPM - state.motor.maxRPM) < Math.abs(best.maxRPM - state.motor.maxRPM) ? m : best
+  );
+  state.assembly.motor = { ...bestMotor };
+
+  // Rotor: match by first ring's portCount
+  if (state.rings.length > 0) {
+    const bestRotor = PARTS.rotors.reduce((best, r) =>
+      Math.abs(r.portCount - state.rings[0].portCount) < Math.abs(best.portCount - state.rings[0].portCount) ? r : best
+    );
+    state.assembly.rotor = { ...bestRotor };
+  } else {
+    state.assembly.rotor = null;
+  }
+
+  // Horn: match by freq
+  const bestHorn = PARTS.horns.reduce((best, h) =>
+    Math.abs(h.freq - state.horn.freq) < Math.abs(best.freq - state.horn.freq) ? h : best
+  );
+  state.assembly.horn = { ...bestHorn };
+}
+
+function syncAssemblyToState() {
+  const asm = state.assembly;
+  if (asm.motor) {
+    state.motor.maxRPM = asm.motor.maxRPM;
+    state.motor.tauUp = asm.motor.tauUp;
+  }
+  if (asm.rotor) {
+    state.motor.tauDown = asm.rotor.tauDown;
+    state.rings = [{
+      portCount: asm.rotor.portCount,
+      portShape: 'rectangular',
+      dutyCycle: 0.5,
+      enabled: true,
+    }];
+    state.selectedRing = 0;
+  }
+  if (asm.horn) {
+    state.horn.freq = asm.horn.freq;
+    state.horn.Q = asm.horn.Q;
+  }
+  sendConfig();
+  sendMotor();
+  updateHornFilter();
+}
+
+function getAssemblyMessage() {
+  const asm = state.assembly;
+  if (!asm.motor && !asm.rotor) return 'Add a motor and rotor to make sound!';
+  if (!asm.motor) return 'Add a motor to spin the rotor!';
+  if (!asm.rotor) return 'Add a rotor to chop the air!';
+  if (!asm.horn) return 'Add a horn to shape the sound! (optional)';
+  return 'Your siren is ready! Switch to Tune mode to play.';
+}
+
+function renderBuildPanel() {
+  let html = '<div class="build-panel">';
+
+  // --- Parts Bin ---
+  html += '<div class="parts-bin"><h3>Parts Bin</h3>';
+
+  // Motors
+  html += '<div class="parts-section"><div class="parts-section-title">Motors</div><div class="parts-row">';
+  for (const m of PARTS.motors) {
+    html += `<div class="part-card" draggable="true" data-part-type="motor" data-part-id="${m.id}">
+      <span class="part-label">${m.label}</span>
+      <span class="part-detail">${m.maxRPM} RPM</span>
+    </div>`;
+  }
+  html += '</div></div>';
+
+  // Rotors
+  html += '<div class="parts-section"><div class="parts-section-title">Rotors</div><div class="parts-row">';
+  for (const r of PARTS.rotors) {
+    html += `<div class="part-card" draggable="true" data-part-type="rotor" data-part-id="${r.id}">
+      <span class="part-label">${r.label}</span>
+      <span class="part-detail">${r.portCount} holes</span>
+    </div>`;
+  }
+  html += '</div></div>';
+
+  // Horns
+  html += '<div class="parts-section"><div class="parts-section-title">Horns</div><div class="parts-row">';
+  for (const h of PARTS.horns) {
+    html += `<div class="part-card" draggable="true" data-part-type="horn" data-part-id="${h.id}">
+      <span class="part-label">${h.label}</span>
+      <span class="part-detail">${h.freq} Hz, Q=${h.Q}</span>
+    </div>`;
+  }
+  html += '</div></div>';
+  html += '</div>'; // end parts-bin
+
+  // --- Assembly Area ---
+  html += '<div class="assembly-area"><h3>Assembly</h3><div class="assembly-slots">';
+
+  // Horn slot (top)
+  html += renderSlot('horn', 'Horn', state.assembly.horn);
+  // Rotor slot (middle)
+  html += renderSlot('rotor', 'Rotor', state.assembly.rotor);
+  // Motor slot (bottom)
+  html += renderSlot('motor', 'Motor', state.assembly.motor);
+
+  html += '</div>'; // end assembly-slots
+
+  // Message
+  html += `<div class="assembly-message">${getAssemblyMessage()}</div>`;
+
+  html += '</div>'; // end assembly-area
+
+  // Clear button
+  html += '<div class="build-actions"><button class="btn-clear-assembly" id="btn-clear-assembly">Clear All</button></div>';
+
+  html += '</div>'; // end build-panel
+
+  buildPanel.innerHTML = html;
+  bindBuildEvents();
+}
+
+function renderSlot(type, label, part) {
+  if (part) {
+    let detail = '';
+    if (type === 'motor') detail = `${part.maxRPM} RPM`;
+    else if (type === 'rotor') detail = `${part.portCount} holes`;
+    else if (type === 'horn') detail = `${part.freq} Hz, Q=${part.Q}`;
+
+    return `<div class="assembly-slot filled" data-slot-type="${type}">
+      <div>
+        <div class="slot-part-name">${label}: ${part.label}</div>
+        <div class="slot-part-detail">${detail}</div>
+      </div>
+      <button class="slot-remove" data-remove-slot="${type}">X</button>
+    </div>`;
+  }
+  return `<div class="assembly-slot" data-slot-type="${type}">
+    <span class="slot-label">Drop a ${label} here</span>
+  </div>`;
+}
+
+function bindBuildEvents() {
+  // Drag start on part cards
+  buildPanel.querySelectorAll('.part-card').forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('application/x-siren-part', JSON.stringify({
+        type: card.dataset.partType,
+        id: card.dataset.partId,
+      }));
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+  });
+
+  // Drop on slots
+  buildPanel.querySelectorAll('.assembly-slot').forEach(slot => {
+    slot.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      slot.classList.add('drag-over');
+      e.dataTransfer.dropEffect = 'copy';
+    });
+
+    slot.addEventListener('dragleave', () => {
+      slot.classList.remove('drag-over');
+    });
+
+    slot.addEventListener('drop', (e) => {
+      e.preventDefault();
+      slot.classList.remove('drag-over');
+      const raw = e.dataTransfer.getData('application/x-siren-part');
+      if (!raw) return;
+      try {
+        const data = JSON.parse(raw);
+        const slotType = slot.dataset.slotType;
+        if (data.type !== slotType) return; // type mismatch
+        placePart(slotType, data.id);
+      } catch {}
+    });
+  });
+
+  // Remove buttons
+  buildPanel.querySelectorAll('[data-remove-slot]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const slotType = btn.dataset.removeSlot;
+      state.assembly[slotType] = null;
+      syncAssemblyToState();
+      renderBuildPanel();
+    });
+  });
+
+  // Clear all
+  const clearBtn = document.getElementById('btn-clear-assembly');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      state.assembly.motor = null;
+      state.assembly.rotor = null;
+      state.assembly.horn = null;
+      syncAssemblyToState();
+      renderBuildPanel();
+    });
+  }
+}
+
+function placePart(type, partId) {
+  let partList;
+  if (type === 'motor') partList = PARTS.motors;
+  else if (type === 'rotor') partList = PARTS.rotors;
+  else if (type === 'horn') partList = PARTS.horns;
+  else return;
+
+  const part = partList.find(p => p.id === partId);
+  if (!part) return;
+
+  state.assembly[type] = { ...part };
+  syncAssemblyToState();
+  renderBuildPanel();
+}
 
 // ============================================================
 // INITIALIZATION
