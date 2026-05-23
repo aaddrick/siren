@@ -1070,6 +1070,11 @@ const ctx = canvas.getContext('2d');
 let animAngle = 0;
 let lastAnimTime = 0;
 
+// Sound wave animation state
+let soundWaves = [];
+let lastWaveSpawn = 0;
+let nextColorIndex = 0;
+
 function setupCanvas() {
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
@@ -1118,6 +1123,72 @@ function drawSiren(time) {
   const ringGapH = ringTotalH * 0.3;
 
   let y = pad;
+
+  // === SOUND WAVES (drawn before horn so they appear behind it) ===
+  {
+    // Determine active rings and compute average frequency
+    const activeRings = state.rings
+      .map((r, i) => ({ ring: r, index: i }))
+      .filter(r => r.ring.enabled);
+
+    if (isRunning && activeRings.length > 0) {
+      const avgFreq = activeRings.reduce((sum, r) => sum + r.ring.portCount * state.currentRPM / 60, 0) / activeRings.length;
+
+      // Spawn new waves at a rate proportional to frequency
+      // Use a multiplier so waves don't spawn too rapidly
+      const spawnInterval = 1000 / (avgFreq * 0.15);
+      if (time - lastWaveSpawn > spawnInterval) {
+        const colorIdx = activeRings[nextColorIndex % activeRings.length].index;
+        soundWaves.push({ age: 0, maxAge: 1.0, colorIndex: colorIdx });
+        nextColorIndex++;
+        lastWaveSpawn = time;
+      }
+    }
+
+    // Update wave ages and remove expired ones
+    for (let i = soundWaves.length - 1; i >= 0; i--) {
+      soundWaves[i].age += dt;
+      if (soundWaves[i].age > soundWaves[i].maxAge) {
+        soundWaves.splice(i, 1);
+      }
+    }
+
+    // Clear waves when siren stops
+    if (!isRunning && soundWaves.length > 0) {
+      // Let existing waves fade out naturally (they'll be removed above)
+    }
+
+    // Draw sound waves as arcs emanating from horn mouth
+    const waveCx = W / 2;
+    const waveCy = pad + 3;
+    const maxRadius = 75;
+
+    ctx.save();
+    // Clip to upper region so waves don't paint over the siren body
+    ctx.beginPath();
+    ctx.rect(0, 0, W, pad + 6);
+    ctx.clip();
+
+    for (const wave of soundWaves) {
+      const progress = wave.age / wave.maxAge;
+      const radius = progress * maxRadius;
+      const alpha = (1 - progress) * rpmFrac;
+      const color = RING_COLORS[wave.colorIndex % RING_COLORS.length];
+      const lw = 2 + rpmFrac * 3;
+
+      if (alpha <= 0) continue;
+
+      ctx.beginPath();
+      ctx.arc(waveCx, waveCy, radius, Math.PI, 0);
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = lw;
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
 
   // === HORN (flared trapezoid) ===
   const hornTopW = innerW * 0.9;
