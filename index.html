@@ -521,6 +521,8 @@ input[type="range"]::-moz-range-thumb {
       <button class="mode-btn active" data-mode="steady"><span class="icon">&#x2500;</span>STEADY</button>
       <button class="mode-btn" data-mode="wail"><span class="icon">&#x223F;</span>WAIL</button>
       <button class="mode-btn" data-mode="alert"><span class="icon">&#x2A5A;</span>ALERT</button>
+      <button class="mode-btn" data-mode="hilo"><span class="icon">&#x2195;</span>HI-LO</button>
+      <button class="mode-btn" data-mode="attack"><span class="icon">&#x26A1;</span>ATTACK</button>
     </div>
   </div>
 
@@ -692,6 +694,7 @@ const state = {
     tauUp: 8, tauDown: 12,
     wailPeriod: 10, wailMin: 0.4,
     alertPeriod: 7, alertDuty: 0.5,
+    hiloPeriod: 3, attackPeriod: 6,
   },
   horn: { freq: 650, Q: 2.0 },
   volume: 0.7,
@@ -717,10 +720,14 @@ class SirenProcessor extends AudioWorkletProcessor {
       tauUp: 8, tauDown: 12,
       wailPeriod: 10, wailMin: 0.4,
       alertPeriod: 7, alertDuty: 0.5,
+      hiloPeriod: 3, attackPeriod: 6,
     };
     this.volume = 0.7;
     this.telemetryCounter = 0;
     this.telemetryInterval = Math.floor(sampleRate * 0.05);
+    // Hi-Lo state
+    this.hiloTimer = 0;
+    this.hiloState = 0;
     // Noise filter state
     this.noisePrev = 0;
 
@@ -740,6 +747,8 @@ class SirenProcessor extends AudioWorkletProcessor {
           if (msg.wailMin !== undefined) this.motor.wailMin = msg.wailMin;
           if (msg.alertPeriod !== undefined) this.motor.alertPeriod = msg.alertPeriod;
           if (msg.alertDuty !== undefined) this.motor.alertDuty = msg.alertDuty;
+          if (msg.hiloPeriod !== undefined) this.motor.hiloPeriod = msg.hiloPeriod;
+          if (msg.attackPeriod !== undefined) this.motor.attackPeriod = msg.attackPeriod;
           break;
         case 'volume':
           this.volume = msg.level;
@@ -783,6 +792,14 @@ class SirenProcessor extends AudioWorkletProcessor {
         const phase = (this.time % m.alertPeriod) / m.alertPeriod;
         return phase < m.alertDuty ? m.maxRPM : 0;
       }
+      case 'hilo':
+        return m.maxRPM;
+      case 'attack': {
+        const phase = (this.time % m.attackPeriod) / m.attackPeriod;
+        if (phase < 0.3) return m.maxRPM;
+        if (phase < 0.5) return m.maxRPM;
+        return 0;
+      }
       default:
         return m.maxRPM;
     }
@@ -810,6 +827,15 @@ class SirenProcessor extends AudioWorkletProcessor {
       const angularVel = this.rpm * 2 * Math.PI / 60;
       this.rotorAngle = (this.rotorAngle + angularVel * dt) % (2 * Math.PI);
 
+      // Hi-Lo timer update (before ring loop)
+      if (this.motor.mode === 'hilo' && this.rings.length >= 2) {
+        this.hiloTimer += dt;
+        if (this.hiloTimer >= this.motor.hiloPeriod) {
+          this.hiloTimer = 0;
+          this.hiloState = 1 - this.hiloState;
+        }
+      }
+
       // Sum ring contributions
       let sample = 0;
       let activeCount = 0;
@@ -817,6 +843,8 @@ class SirenProcessor extends AudioWorkletProcessor {
       for (let r = 0; r < this.rings.length; r++) {
         const ring = this.rings[r];
         if (!ring.enabled) continue;
+        // Hi-Lo: only play the active ring
+        if (this.motor.mode === 'hilo' && this.rings.length >= 2 && r !== this.hiloState % this.rings.length) continue;
         activeCount++;
 
         const n = ring.portCount;
@@ -952,6 +980,8 @@ function sendMotor() {
     wailMin: state.motor.wailMin,
     alertPeriod: state.motor.alertPeriod,
     alertDuty: state.motor.alertDuty,
+    hiloPeriod: state.motor.hiloPeriod,
+    attackPeriod: state.motor.attackPeriod,
   });
 }
 
