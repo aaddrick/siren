@@ -1,0 +1,1786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Siren Creator!</title>
+<style>
+:root {
+  --bg-primary: #1a1a2e;
+  --bg-panel: #16213e;
+  --bg-control: #0f3460;
+  --text-primary: #e0e0e0;
+  --text-accent: #ffffff;
+  --accent-blue: #2196F3;
+  --accent-orange: #FF9800;
+  --accent-green: #4CAF50;
+  --accent-red: #F44336;
+  --ring-color-1: #FF6B6B;
+  --ring-color-2: #4ECDC4;
+  --ring-color-3: #FFE66D;
+  --ring-color-4: #A8E6CF;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --font-main: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font-main);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(280px, 420px) 1fr;
+  grid-template-areas:
+    "title title"
+    "canvas controls"
+    "presets presets";
+  gap: 12px;
+  padding: 12px;
+  font-size: 18px;
+}
+
+@media (max-width: 700px) {
+  body {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "title"
+      "canvas"
+      "controls"
+      "presets";
+  }
+}
+
+/* --- Title Bar --- */
+.title-bar {
+  grid-area: title;
+  text-align: center;
+  padding: 12px;
+  background: var(--bg-panel);
+  border-radius: var(--radius-md);
+}
+.title-bar h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-accent);
+  letter-spacing: 2px;
+}
+
+/* --- Canvas Area --- */
+.canvas-area {
+  grid-area: canvas;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-panel);
+  border-radius: var(--radius-md);
+}
+#rotor-canvas {
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 4/5;
+  border-radius: var(--radius-md);
+  background: #0d0d18;
+}
+.rpm-bar-container {
+  width: 100%;
+  max-width: 400px;
+  height: 24px;
+  background: #111;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  position: relative;
+}
+.rpm-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-green), #ffeb3b, var(--accent-red));
+  border-radius: var(--radius-sm);
+  transition: width 0.05s linear;
+}
+.rpm-label {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+.freq-display {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  min-height: 20px;
+}
+.freq-chip {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 10px;
+  color: white;
+}
+
+/* --- Controls Panel --- */
+.controls {
+  grid-area: controls;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-panel);
+  border-radius: var(--radius-md);
+  overflow-y: auto;
+}
+
+/* --- Big Button --- */
+.btn-start {
+  width: 100%;
+  padding: 20px;
+  font-size: 24px;
+  font-weight: 800;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: white;
+  background: var(--accent-green);
+  transition: transform 0.1s, box-shadow 0.2s;
+  min-height: 64px;
+  letter-spacing: 1px;
+}
+.btn-start:hover { transform: scale(1.03); }
+.btn-start:active { transform: scale(0.97); }
+.btn-start.running {
+  background: var(--accent-red);
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(244,67,54,0.4); }
+  50% { box-shadow: 0 0 24px rgba(244,67,54,0.8); }
+}
+
+/* --- Control Group --- */
+.control-group {
+  background: var(--bg-control);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+.control-group label {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--accent-blue);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.control-group .value-display {
+  font-size: 14px;
+  color: var(--text-accent);
+  float: right;
+  font-weight: 600;
+}
+
+/* --- Sliders --- */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 12px;
+  border-radius: 6px;
+  background: #1a1a2e;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  border: 3px solid white;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-blue);
+  border: 3px solid white;
+  cursor: pointer;
+}
+
+/* --- Mode Buttons --- */
+.mode-group {
+  display: flex;
+  gap: 8px;
+}
+.mode-btn {
+  flex: 1;
+  padding: 12px 8px;
+  border: 3px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+.mode-btn.active {
+  border-color: var(--accent-orange);
+  background: rgba(255, 152, 0, 0.15);
+  color: var(--text-accent);
+}
+.mode-btn:hover { background: rgba(255,255,255,0.05); }
+.mode-btn .icon { font-size: 20px; display: block; margin-bottom: 4px; }
+
+/* --- Ring Controls --- */
+.ring-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ring-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ring-badge {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+}
+.ring-actions { display: flex; gap: 6px; }
+.btn-small {
+  padding: 6px 14px;
+  border: 2px solid var(--accent-blue);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-blue);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-small:hover { background: rgba(33,150,243,0.15); }
+.btn-small.danger { border-color: var(--accent-red); color: var(--accent-red); }
+.btn-small.danger:hover { background: rgba(244,67,54,0.15); }
+
+.ring-item {
+  background: rgba(255,255,255,0.03);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  border-left: 4px solid var(--ring-color-1);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ring-item:hover { background: rgba(255,255,255,0.06); }
+.ring-item.selected { background: rgba(255,255,255,0.08); }
+.ring-item.disabled { opacity: 0.4; }
+
+.shape-toggle {
+  display: flex;
+  gap: 6px;
+}
+.shape-btn {
+  flex: 1;
+  padding: 8px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 18px;
+  cursor: pointer;
+  text-align: center;
+}
+.shape-btn.active {
+  border-color: var(--accent-blue);
+  background: rgba(33,150,243,0.15);
+}
+
+/* --- Presets Bar --- */
+.presets-bar {
+  grid-area: presets;
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-panel);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+.preset-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 16px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--bg-control);
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.preset-btn:hover { border-color: var(--accent-blue); transform: scale(1.03); }
+.preset-btn.active { border-color: var(--accent-orange); }
+.preset-btn .icon { font-size: 22px; display: block; margin-bottom: 4px; }
+
+.save-load-btns {
+  display: flex;
+  gap: 8px;
+}
+.btn-save, .btn-load, .btn-share {
+  padding: 12px 16px;
+  border: 2px solid var(--accent-blue);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--accent-blue);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-save:hover, .btn-load:hover, .btn-share:hover {
+  background: rgba(33,150,243,0.15);
+}
+
+/* --- Modal --- */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--bg-panel);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  min-width: 300px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.modal h2 {
+  font-size: 22px;
+  margin-bottom: 16px;
+  color: var(--text-accent);
+}
+.modal input[type="text"] {
+  width: 100%;
+  padding: 12px;
+  font-size: 18px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--accent-blue);
+  background: var(--bg-primary);
+  color: var(--text-accent);
+  margin-bottom: 12px;
+}
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.btn-modal {
+  padding: 12px 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  color: white;
+}
+.btn-modal.primary { background: var(--accent-green); }
+.btn-modal.secondary { background: var(--bg-control); }
+.btn-modal.danger { background: var(--accent-red); }
+
+.save-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  background: var(--bg-control);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+.save-list-item:hover { background: rgba(33,150,243,0.15); }
+.save-list-item .name { font-weight: 600; }
+.save-list-item .date { font-size: 13px; color: #888; }
+
+/* --- Advanced Toggle --- */
+.advanced-toggle {
+  padding: 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #888;
+  font-size: 14px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.advanced-toggle:hover { color: var(--text-primary); }
+.advanced-content { display: none; }
+.advanced-content.open { display: block; }
+
+/* --- Error banner --- */
+.error-banner {
+  display: none;
+  background: var(--accent-red);
+  color: white;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  text-align: center;
+  font-weight: 600;
+  font-size: 16px;
+}
+.error-banner.show { display: block; }
+
+/* --- Tap overlay --- */
+.tap-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.tap-overlay.hidden { display: none; }
+.tap-overlay h2 {
+  font-size: 36px;
+  color: var(--text-accent);
+  margin-bottom: 12px;
+}
+.tap-overlay p {
+  font-size: 20px;
+  color: #aaa;
+}
+</style>
+</head>
+<body>
+
+<!-- Tap-to-start overlay (required for AudioContext user gesture) -->
+<div class="tap-overlay" id="tap-overlay">
+  <h2>SIREN CREATOR</h2>
+  <p>Tap anywhere to start!</p>
+</div>
+
+<!-- Title -->
+<div class="title-bar">
+  <h1>SIREN CREATOR</h1>
+</div>
+
+<!-- Canvas Area -->
+<div class="canvas-area">
+  <canvas id="rotor-canvas" width="400" height="500"></canvas>
+  <div class="rpm-bar-container">
+    <div class="rpm-bar-fill" id="rpm-bar"></div>
+    <div class="rpm-label" id="rpm-label">0 RPM</div>
+  </div>
+  <div class="freq-display" id="freq-display"></div>
+  <div class="error-banner" id="error-banner"></div>
+</div>
+
+<!-- Controls -->
+<div class="controls">
+  <button class="btn-start" id="btn-start">START</button>
+
+  <div class="control-group">
+    <label>How Fast? <span class="value-display" id="speed-display">3450 RPM</span></label>
+    <input type="range" id="speed-slider" min="500" max="10000" value="3450" step="50">
+  </div>
+
+  <div class="control-group">
+    <label>Mode</label>
+    <div class="mode-group">
+      <button class="mode-btn active" data-mode="steady"><span class="icon">&#x2500;</span>STEADY</button>
+      <button class="mode-btn" data-mode="wail"><span class="icon">&#x223F;</span>WAIL</button>
+      <button class="mode-btn" data-mode="alert"><span class="icon">&#x2A5A;</span>ALERT</button>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label>Rings</label>
+    <div class="ring-controls" id="ring-controls"></div>
+    <div style="margin-top:8px">
+      <button class="btn-small" id="btn-add-ring">+ Add Ring</button>
+    </div>
+  </div>
+
+  <div class="control-group" id="selected-ring-controls" style="display:none">
+    <label>Selected Ring <span class="value-display" id="ring-freq-display"></span></label>
+    <div style="margin-bottom:10px">
+      <label style="font-size:13px">Holes: <span class="value-display" id="port-count-display">10</span></label>
+      <input type="range" id="port-count-slider" min="4" max="16" value="10" step="1">
+    </div>
+    <div style="margin-bottom:10px">
+      <label style="font-size:13px">Hole Size: <span class="value-display" id="duty-display">50%</span></label>
+      <input type="range" id="duty-slider" min="20" max="80" value="50" step="1">
+    </div>
+    <div>
+      <label style="font-size:13px">Hole Shape:</label>
+      <div class="shape-toggle">
+        <button class="shape-btn active" data-shape="rectangular">&#x25A0; Square</button>
+        <button class="shape-btn" data-shape="round">&#x25CF; Round</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="control-group">
+    <label>Volume <span class="value-display" id="volume-display">70%</span></label>
+    <input type="range" id="volume-slider" min="0" max="100" value="70" step="1">
+  </div>
+
+  <button class="advanced-toggle" id="advanced-toggle">Advanced Settings &#x25BC;</button>
+  <div class="advanced-content" id="advanced-content">
+    <div class="control-group">
+      <label>Motor Power <span class="value-display" id="power-display">50%</span></label>
+      <input type="range" id="power-slider" min="10" max="100" value="50" step="1">
+    </div>
+    <div class="control-group">
+      <label>Rotor Weight <span class="value-display" id="weight-display">50%</span></label>
+      <input type="range" id="weight-slider" min="10" max="100" value="50" step="1">
+    </div>
+    <div class="control-group" id="wail-speed-group" style="display:none">
+      <label>Wail Speed <span class="value-display" id="wail-display">10s</span></label>
+      <input type="range" id="wail-slider" min="4" max="20" value="10" step="1">
+    </div>
+  </div>
+</div>
+
+<!-- Presets Bar -->
+<div class="presets-bar">
+  <button class="preset-btn" data-preset="thunderbolt"><span class="icon">&#x1F32A;&#xFE0F;</span>Tornado</button>
+  <button class="preset-btn" data-preset="city"><span class="icon">&#x1F3D9;&#xFE0F;</span>City</button>
+  <button class="preset-btn" data-preset="airraid"><span class="icon">&#x2708;&#xFE0F;</span>Air Raid</button>
+  <button class="preset-btn" data-preset="simple"><span class="icon">&#x1F514;</span>Simple</button>
+  <div class="save-load-btns">
+    <button class="btn-save" id="btn-save">Save</button>
+    <button class="btn-load" id="btn-load">Load</button>
+    <button class="btn-share" id="btn-share">Copy Link</button>
+  </div>
+</div>
+
+<!-- Save Modal -->
+<div class="modal-overlay" id="save-modal">
+  <div class="modal">
+    <h2>Save Your Siren</h2>
+    <input type="text" id="save-name" placeholder="My Cool Siren" value="">
+    <div class="modal-actions">
+      <button class="btn-modal secondary" id="save-cancel">Cancel</button>
+      <button class="btn-modal primary" id="save-confirm">SAVE!</button>
+    </div>
+  </div>
+</div>
+
+<!-- Load Modal -->
+<div class="modal-overlay" id="load-modal">
+  <div class="modal">
+    <h2>Load a Siren</h2>
+    <div id="save-list"></div>
+    <div class="modal-actions">
+      <button class="btn-modal secondary" id="load-cancel">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONSTANTS & PRESETS
+// ============================================================
+const RING_COLORS = ['#FF6B6B', '#4ECDC4', '#FFE66D', '#A8E6CF'];
+const MAX_RINGS = 4;
+const STORAGE_KEY = 'sirenCreator_saves';
+
+const PRESETS = {
+  thunderbolt: {
+    name: 'Tornado Siren',
+    rings: [
+      { portCount: 5, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 6, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    ],
+    motor: {
+      maxRPM: 7500, mode: 'wail',
+      tauUp: 12, tauDown: 18,
+      wailPeriod: 12, wailMin: 0.35,
+      alertPeriod: 7, alertDuty: 0.5,
+    },
+    horn: { freq: 700, Q: 2.5 },
+    volume: 0.7,
+  },
+  city: {
+    name: 'City Siren',
+    rings: [
+      { portCount: 10, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 12, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    ],
+    motor: {
+      maxRPM: 3450, mode: 'wail',
+      tauUp: 8, tauDown: 12,
+      wailPeriod: 10, wailMin: 0.4,
+      alertPeriod: 7, alertDuty: 0.5,
+    },
+    horn: { freq: 650, Q: 2.0 },
+    volume: 0.7,
+  },
+  airraid: {
+    name: 'Air Raid',
+    rings: [
+      { portCount: 9, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+      { portCount: 12, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    ],
+    motor: {
+      maxRPM: 3500, mode: 'wail',
+      tauUp: 7, tauDown: 10,
+      wailPeriod: 15, wailMin: 0.3,
+      alertPeriod: 7, alertDuty: 0.5,
+    },
+    horn: { freq: 600, Q: 1.8 },
+    volume: 0.7,
+  },
+  simple: {
+    name: 'Simple Tone',
+    rings: [
+      { portCount: 8, portShape: 'round', dutyCycle: 0.5, enabled: true },
+    ],
+    motor: {
+      maxRPM: 3000, mode: 'steady',
+      tauUp: 5, tauDown: 8,
+      wailPeriod: 10, wailMin: 0.4,
+      alertPeriod: 7, alertDuty: 0.5,
+    },
+    horn: { freq: 500, Q: 1.5 },
+    volume: 0.7,
+  },
+};
+
+// ============================================================
+// APP STATE
+// ============================================================
+const state = {
+  rings: [
+    { portCount: 10, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+    { portCount: 12, portShape: 'rectangular', dutyCycle: 0.5, enabled: true },
+  ],
+  motor: {
+    maxRPM: 3450, mode: 'steady', running: false,
+    tauUp: 8, tauDown: 12,
+    wailPeriod: 10, wailMin: 0.4,
+    alertPeriod: 7, alertDuty: 0.5,
+  },
+  horn: { freq: 650, Q: 2.0 },
+  volume: 0.7,
+  selectedRing: 0,
+  currentRPM: 0,
+  activePreset: null,
+};
+
+// ============================================================
+// AUDIO WORKLET PROCESSOR (inlined as Blob URL)
+// ============================================================
+const workletCode = `
+class SirenProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.rpm = 0;
+    this.rotorAngle = 0;
+    this.time = 0;
+    this.running = false;
+    this.rings = [];
+    this.motor = {
+      maxRPM: 3450, mode: 'steady',
+      tauUp: 8, tauDown: 12,
+      wailPeriod: 10, wailMin: 0.4,
+      alertPeriod: 7, alertDuty: 0.5,
+    };
+    this.volume = 0.7;
+    this.telemetryCounter = 0;
+    this.telemetryInterval = Math.floor(sampleRate * 0.05);
+    // Noise filter state
+    this.noisePrev = 0;
+
+    this.port.onmessage = (e) => {
+      const msg = e.data;
+      switch (msg.type) {
+        case 'config':
+          this.rings = msg.rings || [];
+          break;
+        case 'motor':
+          if (msg.running !== undefined) this.running = msg.running;
+          if (msg.maxRPM !== undefined) this.motor.maxRPM = msg.maxRPM;
+          if (msg.mode !== undefined) this.motor.mode = msg.mode;
+          if (msg.tauUp !== undefined) this.motor.tauUp = msg.tauUp;
+          if (msg.tauDown !== undefined) this.motor.tauDown = msg.tauDown;
+          if (msg.wailPeriod !== undefined) this.motor.wailPeriod = msg.wailPeriod;
+          if (msg.wailMin !== undefined) this.motor.wailMin = msg.wailMin;
+          if (msg.alertPeriod !== undefined) this.motor.alertPeriod = msg.alertPeriod;
+          if (msg.alertDuty !== undefined) this.motor.alertDuty = msg.alertDuty;
+          break;
+        case 'volume':
+          this.volume = msg.level;
+          break;
+      }
+    };
+  }
+
+  portOverlap(phase, dutyCycle) {
+    // phase: 0-1 within one port period, dutyCycle: 0-1
+    // Convolution of two rectangular pulses of width dutyCycle
+    const w = dutyCycle;
+    let d = phase % 1.0;
+    if (d < 0) d += 1.0;
+    if (d > 0.5) d -= 1.0;
+    return Math.max(0, w - Math.abs(d)) / w;
+  }
+
+  portOverlapRound(phase, dutyCycle) {
+    // Smooth cosine-based overlap for round ports
+    let d = phase % 1.0;
+    if (d < 0) d += 1.0;
+    if (d > 0.5) d -= 1.0;
+    const w = dutyCycle * 0.5;
+    if (Math.abs(d) >= w) return 0;
+    return 0.5 * (1 + Math.cos(Math.PI * d / w));
+  }
+
+  getTargetRPM() {
+    if (!this.running) return 0;
+    const m = this.motor;
+    switch (m.mode) {
+      case 'steady':
+        return m.maxRPM;
+      case 'wail': {
+        const phase = (this.time % m.wailPeriod) / m.wailPeriod;
+        const frac = m.wailMin + (1 - m.wailMin) * 0.5 * (1 - Math.cos(phase * 2 * Math.PI));
+        return m.maxRPM * frac;
+      }
+      case 'alert': {
+        const phase = (this.time % m.alertPeriod) / m.alertPeriod;
+        return phase < m.alertDuty ? m.maxRPM : 0;
+      }
+      default:
+        return m.maxRPM;
+    }
+  }
+
+  process(inputs, outputs) {
+    const output = outputs[0];
+    const channel = output[0];
+    if (!channel) return true;
+    const dt = 1 / sampleRate;
+
+    for (let i = 0; i < channel.length; i++) {
+      this.time += dt;
+
+      // Motor dynamics
+      const target = this.getTargetRPM();
+      if (target > this.rpm) {
+        this.rpm += (target - this.rpm) * (1 - Math.exp(-dt / this.motor.tauUp));
+      } else {
+        this.rpm *= Math.exp(-dt / this.motor.tauDown);
+        if (this.rpm < 0.5) this.rpm = 0;
+      }
+
+      // Advance rotor angle (keep within 0-2PI for float precision)
+      const angularVel = this.rpm * 2 * Math.PI / 60;
+      this.rotorAngle = (this.rotorAngle + angularVel * dt) % (2 * Math.PI);
+
+      // Sum ring contributions
+      let sample = 0;
+      let activeCount = 0;
+
+      for (let r = 0; r < this.rings.length; r++) {
+        const ring = this.rings[r];
+        if (!ring.enabled) continue;
+        activeCount++;
+
+        const n = ring.portCount;
+        const portPhase = ((n * this.rotorAngle) / (2 * Math.PI)) % 1.0;
+
+        let openness;
+        if (ring.portShape === 'round') {
+          openness = this.portOverlapRound(portPhase, ring.dutyCycle);
+        } else {
+          openness = this.portOverlap(portPhase, ring.dutyCycle);
+        }
+
+        // Center around 0 for audio signal, weight by ring index
+        const weight = 0.8 + 0.2 * (r / Math.max(1, this.rings.length - 1));
+        sample += (openness - 0.5) * weight;
+      }
+
+      if (activeCount > 0) sample /= activeCount;
+
+      // Amplitude envelope based on RPM
+      const rpmFrac = this.rpm / Math.max(1, this.motor.maxRPM);
+      const ampEnv = Math.pow(rpmFrac, 1.5);
+      sample *= ampEnv;
+
+      // Turbulence noise layer (subtle air whoosh, not audible fuzz)
+      const noiseRaw = (Math.random() * 2 - 1) * 0.04 * Math.pow(rpmFrac, 2.0);
+      this.noisePrev += 0.08 * (noiseRaw - this.noisePrev);
+      sample += this.noisePrev;
+
+      // Volume and soft clip
+      sample *= this.volume;
+      sample = Math.tanh(sample * 2.0);
+
+      channel[i] = sample;
+    }
+
+    // Stereo: copy to other channels
+    for (let c = 1; c < output.length; c++) {
+      output[c].set(channel);
+    }
+
+    // Telemetry
+    this.telemetryCounter += channel.length;
+    if (this.telemetryCounter >= this.telemetryInterval) {
+      this.port.postMessage({ type: 'telemetry', rpm: this.rpm });
+      this.telemetryCounter = 0;
+    }
+
+    return true;
+  }
+}
+
+registerProcessor('siren-processor', SirenProcessor);
+`;
+
+// ============================================================
+// AUDIO ENGINE (main thread)
+// ============================================================
+let audioCtx = null;
+let sirenNode = null;
+let hornFilter = null;
+let gainNode = null;
+let audioReady = false;
+
+async function initAudio() {
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+    const blob = new Blob([workletCode], { type: 'application/javascript' });
+    const url = URL.createObjectURL(blob);
+    await audioCtx.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
+
+    sirenNode = new AudioWorkletNode(audioCtx, 'siren-processor');
+
+    // Horn resonance filter
+    hornFilter = audioCtx.createBiquadFilter();
+    hornFilter.type = 'peaking';
+    hornFilter.frequency.value = state.horn.freq;
+    hornFilter.Q.value = state.horn.Q;
+    hornFilter.gain.value = 8;
+
+    gainNode = audioCtx.createGain();
+    gainNode.gain.value = 1.0;
+
+    sirenNode.connect(hornFilter);
+    hornFilter.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    sirenNode.port.onmessage = (e) => {
+      if (e.data.type === 'telemetry') {
+        state.currentRPM = e.data.rpm;
+      }
+    };
+
+    sendConfig();
+    sendMotor();
+    sendVolume();
+
+    audioReady = true;
+  } catch (err) {
+    const banner = document.getElementById('error-banner');
+    banner.textContent = 'Could not start audio engine. Try using Chrome or Firefox!';
+    banner.classList.add('show');
+    console.error('Audio init failed:', err);
+  }
+}
+
+function sendConfig() {
+  if (!sirenNode) return;
+  sirenNode.port.postMessage({
+    type: 'config',
+    rings: state.rings.map(r => ({
+      portCount: r.portCount,
+      portShape: r.portShape,
+      dutyCycle: r.dutyCycle,
+      enabled: r.enabled,
+    })),
+  });
+}
+
+function sendMotor() {
+  if (!sirenNode) return;
+  sirenNode.port.postMessage({
+    type: 'motor',
+    running: state.motor.running,
+    maxRPM: state.motor.maxRPM,
+    mode: state.motor.mode,
+    tauUp: state.motor.tauUp,
+    tauDown: state.motor.tauDown,
+    wailPeriod: state.motor.wailPeriod,
+    wailMin: state.motor.wailMin,
+    alertPeriod: state.motor.alertPeriod,
+    alertDuty: state.motor.alertDuty,
+  });
+}
+
+function sendVolume() {
+  if (!sirenNode) return;
+  sirenNode.port.postMessage({ type: 'volume', level: state.volume });
+}
+
+function updateHornFilter() {
+  if (!hornFilter) return;
+  hornFilter.frequency.value = state.horn.freq;
+  hornFilter.Q.value = state.horn.Q;
+}
+
+// ============================================================
+// CANVAS - ROTOR EDITOR
+// ============================================================
+const canvas = document.getElementById('rotor-canvas');
+const ctx = canvas.getContext('2d');
+let animAngle = 0;
+let lastAnimTime = 0;
+
+function setupCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+// Stored layout rects for click detection
+let ringBands = [];
+
+function drawSiren(time) {
+  if (!lastAnimTime) lastAnimTime = time;
+  const dt = (time - lastAnimTime) / 1000;
+  lastAnimTime = time;
+
+  const angularVel = state.currentRPM * 2 * Math.PI / 60;
+  animAngle += angularVel * dt;
+
+  const rect = canvas.getBoundingClientRect();
+  const W = rect.width;
+  const H = rect.height;
+  const pad = 16;
+  const innerW = W - pad * 2;
+  const rpmFrac = state.currentRPM / Math.max(1, state.motor.maxRPM);
+  const isRunning = state.motor.running && state.currentRPM > 1;
+  const ringsCount = Math.max(1, state.rings.length);
+  const fontFamily = getComputedStyle(document.body).fontFamily;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // === LAYOUT ===
+  const hornH = H * 0.11;
+  const motorH = H * 0.13;
+  const shaftH = H * 0.08;
+  const statorCapH = 6;
+  const basePlateH = 6;
+  const ringAreaH = H - hornH - statorCapH - basePlateH - shaftH - motorH - pad * 2;
+  const ringTotalH = ringAreaH / ringsCount;
+  const statorRowH = ringTotalH * 0.35;
+  const rotorRowH = ringTotalH * 0.35;
+  const ringGapH = ringTotalH * 0.3;
+
+  let y = pad;
+
+  // === HORN (flared trapezoid) ===
+  const hornTopW = innerW * 0.9;
+  const hornBotW = innerW * 0.45;
+  const hornGrad = ctx.createLinearGradient(0, y, 0, y + hornH);
+  hornGrad.addColorStop(0, '#8B7355');
+  hornGrad.addColorStop(0.5, '#A08060');
+  hornGrad.addColorStop(1, '#6B5540');
+  ctx.beginPath();
+  ctx.moveTo(pad + (innerW - hornTopW) / 2, y);
+  ctx.lineTo(pad + (innerW + hornTopW) / 2, y);
+  ctx.lineTo(pad + (innerW + hornBotW) / 2, y + hornH);
+  ctx.lineTo(pad + (innerW - hornBotW) / 2, y + hornH);
+  ctx.closePath();
+  ctx.fillStyle = hornGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#9B8365';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Horn opening (dark inside)
+  const openW = hornTopW * 0.75;
+  const openBotW = hornBotW * 0.5;
+  ctx.beginPath();
+  ctx.moveTo(pad + (innerW - openW) / 2, y + 3);
+  ctx.lineTo(pad + (innerW + openW) / 2, y + 3);
+  ctx.lineTo(pad + (innerW + openBotW) / 2, y + hornH - 2);
+  ctx.lineTo(pad + (innerW - openBotW) / 2, y + hornH - 2);
+  ctx.closePath();
+  ctx.fillStyle = '#1a1210';
+  ctx.fill();
+
+  // Label
+  ctx.fillStyle = '#c0a080';
+  ctx.font = `bold 10px ${fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('HORN', W / 2, y + hornH - 8);
+
+  y += hornH;
+
+  // === STATOR CAP (thin plate connecting horn to assembly) ===
+  ctx.fillStyle = '#3a3a4a';
+  ctx.fillRect(pad, y, innerW, statorCapH);
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(pad, y, innerW, statorCapH);
+  y += statorCapH;
+
+  // === PORT ASSEMBLY (stator + rotor bands per ring) ===
+  ringBands = [];
+  const assemblyX = pad;
+  const assemblyW = innerW;
+
+  for (let i = 0; i < state.rings.length; i++) {
+    const ring = state.rings[i];
+    const color = RING_COLORS[i % RING_COLORS.length];
+    const bandY = y + i * ringTotalH;
+    const gapBefore = ringGapH * 0.15;
+
+    // Store for click detection
+    ringBands.push({ y: bandY, h: ringTotalH, index: i });
+
+    // Selected highlight background
+    if (i === state.selectedRing) {
+      ctx.fillStyle = color + '15';
+      ctx.fillRect(assemblyX, bandY, assemblyW, statorRowH + rotorRowH + gapBefore * 2);
+      ctx.strokeStyle = color + '60';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(assemblyX, bandY, assemblyW, statorRowH + rotorRowH + gapBefore * 2);
+    }
+
+    // --- STATOR ROW (fixed ports) ---
+    const statorY = bandY + gapBefore;
+    ctx.fillStyle = '#2a2a3a';
+    ctx.fillRect(assemblyX, statorY, assemblyW, statorRowH);
+
+    // Draw stator port pattern (fixed)
+    if (ring.enabled) {
+      drawPortBand(ctx, assemblyX, statorY, assemblyW, statorRowH,
+        ring.portCount, ring.dutyCycle, ring.portShape, 0, '#4a4a6a', color + '30');
+    }
+
+    // Stator label
+    ctx.fillStyle = '#666';
+    ctx.font = `9px ${fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.fillText('STATOR', assemblyX + 4, statorY + statorRowH - 3);
+
+    // --- ROTOR ROW (scrolling ports) ---
+    const rotorY = statorY + statorRowH + 2;
+    ctx.fillStyle = '#1e1e2e';
+    ctx.fillRect(assemblyX, rotorY, assemblyW, rotorRowH);
+
+    if (ring.enabled) {
+      const scrollOffset = (animAngle / (2 * Math.PI)) * assemblyW;
+      drawPortBand(ctx, assemblyX, rotorY, assemblyW, rotorRowH,
+        ring.portCount, ring.dutyCycle, ring.portShape, scrollOffset, '#1e1e2e', color);
+
+      // Glow on rotor when running
+      if (isRunning) {
+        ctx.save();
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 4 + rpmFrac * 8;
+        ctx.strokeStyle = color + '60';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(assemblyX, rotorY, assemblyW, rotorRowH);
+        ctx.restore();
+      }
+    }
+
+    // Rotor label
+    ctx.fillStyle = '#888';
+    ctx.font = `9px ${fontFamily}`;
+    ctx.textAlign = 'left';
+    ctx.fillText('ROTOR', assemblyX + 4, rotorY + rotorRowH - 3);
+
+    // Ring number + port count label on right
+    ctx.fillStyle = color;
+    ctx.font = `bold 11px ${fontFamily}`;
+    ctx.textAlign = 'right';
+    ctx.fillText(`Ring ${i + 1}: ${ring.portCount} ports`, assemblyX + assemblyW - 4, statorY + statorRowH / 2 + 4);
+
+    // Air flow indicators between stator and rotor
+    if (ring.enabled && isRunning) {
+      drawAirFlow(ctx, assemblyX, statorY, assemblyW, statorRowH, rotorRowH,
+        ring.portCount, ring.dutyCycle, animAngle, color, rpmFrac);
+    }
+
+    // Divider between rings
+    if (i < state.rings.length - 1) {
+      const divY = bandY + statorRowH + rotorRowH + gapBefore * 2 + ringGapH * 0.3;
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(assemblyX + 10, divY);
+      ctx.lineTo(assemblyX + assemblyW - 10, divY);
+      ctx.stroke();
+    }
+  }
+
+  y += ringAreaH;
+
+  // === BASE PLATE ===
+  ctx.fillStyle = '#3a3a4a';
+  ctx.fillRect(pad, y, innerW, basePlateH);
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(pad, y, innerW, basePlateH);
+  y += basePlateH;
+
+  // === SHAFT ===
+  const shaftW = 14;
+  const shaftX = W / 2 - shaftW / 2;
+  const shaftGrad = ctx.createLinearGradient(shaftX, 0, shaftX + shaftW, 0);
+  shaftGrad.addColorStop(0, '#555');
+  shaftGrad.addColorStop(0.5, '#888');
+  shaftGrad.addColorStop(1, '#555');
+  ctx.fillStyle = shaftGrad;
+  ctx.fillRect(shaftX, y, shaftW, shaftH);
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(shaftX, y, shaftW, shaftH);
+  y += shaftH;
+
+  // === MOTOR ===
+  const motorW = innerW * 0.55;
+  const motorX = pad + (innerW - motorW) / 2;
+  const motorGrad = ctx.createLinearGradient(0, y, 0, y + motorH);
+  motorGrad.addColorStop(0, '#3a3a4a');
+  motorGrad.addColorStop(0.5, '#2e2e3e');
+  motorGrad.addColorStop(1, '#252535');
+  ctx.fillStyle = motorGrad;
+  roundRect(ctx, motorX, y, motorW, motorH, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 1.5;
+  roundRect(ctx, motorX, y, motorW, motorH, 6);
+  ctx.stroke();
+
+  // Motor spinning indicator
+  const motorCx = W / 2;
+  const motorCy = y + motorH / 2;
+  const motorR = Math.min(motorW, motorH) * 0.25;
+  ctx.strokeStyle = isRunning ? '#FF9800' : '#444';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(motorCx, motorCy, motorR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Spinning spokes
+  const spokeCount = 4;
+  for (let s = 0; s < spokeCount; s++) {
+    const angle = (s / spokeCount) * Math.PI * 2 + (isRunning ? animAngle * 0.5 : 0);
+    ctx.beginPath();
+    ctx.moveTo(motorCx, motorCy);
+    ctx.lineTo(motorCx + motorR * Math.cos(angle), motorCy + motorR * Math.sin(angle));
+    ctx.strokeStyle = isRunning ? '#FF9800' : '#444';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // Motor label
+  ctx.fillStyle = '#888';
+  ctx.font = `bold 10px ${fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.fillText('MOTOR', motorCx, y + motorH - 6);
+
+  // === RPM bar ===
+  const rpmBar = document.getElementById('rpm-bar');
+  const rpmLabel = document.getElementById('rpm-label');
+  rpmBar.style.width = Math.min(100, rpmFrac * 100) + '%';
+  rpmLabel.textContent = Math.round(state.currentRPM) + ' RPM';
+
+  // === Live frequency display ===
+  const freqDisplay = document.getElementById('freq-display');
+  let freqHTML = '';
+  for (let i = 0; i < state.rings.length; i++) {
+    const ring = state.rings[i];
+    if (!ring.enabled) continue;
+    const freq = Math.round(ring.portCount * state.currentRPM / 60);
+    const color = RING_COLORS[i % RING_COLORS.length];
+    freqHTML += `<span class="freq-chip" style="background:${color}55;border:1px solid ${color}">${freq} Hz</span>`;
+  }
+  freqDisplay.innerHTML = freqHTML;
+
+  requestAnimationFrame(drawSiren);
+}
+
+function drawPortBand(ctx, x, y, w, h, portCount, dutyCycle, shape, scrollOffset, bgColor, portColor) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+
+  const period = w / portCount;
+  const portW = period * dutyCycle;
+  const startOffset = -(scrollOffset % period) - period;
+
+  for (let px = startOffset; px < w + period; px += period) {
+    const drawX = x + px;
+    const drawW = portW;
+
+    if (shape === 'round') {
+      const cx = drawX + drawW / 2;
+      const cy = y + h / 2;
+      const r = Math.min(drawW, h - 4) / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = portColor;
+      ctx.fill();
+    } else {
+      ctx.fillStyle = portColor;
+      ctx.fillRect(drawX + 1, y + 2, drawW - 2, h - 4);
+    }
+  }
+
+  ctx.restore();
+}
+
+function drawAirFlow(ctx, x, statorY, w, statorH, rotorH, portCount, dutyCycle, angle, color, rpmFrac) {
+  if (rpmFrac < 0.05) return;
+  const period = w / portCount;
+  const portW = period * dutyCycle;
+  const rotorOffset = (angle / (2 * Math.PI)) * w;
+  const flowY = statorY + statorH;
+  const flowH = 2;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, flowY, w, flowH);
+  ctx.clip();
+  ctx.globalAlpha = rpmFrac * 0.6;
+
+  for (let i = 0; i < portCount * 2; i++) {
+    const statorPortX = i * period;
+    const rotorPortX = (i * period + rotorOffset) % (w + period);
+
+    // Check approximate alignment
+    const statorCenter = statorPortX + portW / 2;
+    const rotorCenter = rotorPortX + portW / 2;
+    for (let rp = -w; rp <= w; rp += w) {
+      const diff = Math.abs(statorCenter - (rotorCenter + rp));
+      if (diff < portW * 0.7) {
+        const fx = x + statorPortX;
+        ctx.fillStyle = color;
+        ctx.fillRect(fx, flowY, portW, flowH);
+        break;
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// Canvas click → select ring by clicking on its band
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const clickY = e.clientY - rect.top;
+
+  for (const band of ringBands) {
+    if (clickY >= band.y && clickY <= band.y + band.h) {
+      state.selectedRing = band.index;
+      updateRingUI();
+      return;
+    }
+  }
+});
+
+// ============================================================
+// UI WIRING
+// ============================================================
+
+// --- Start/Stop ---
+const btnStart = document.getElementById('btn-start');
+btnStart.addEventListener('click', async () => {
+  if (!audioReady) return;
+  state.motor.running = !state.motor.running;
+  sendMotor();
+  btnStart.textContent = state.motor.running ? 'STOP' : 'START';
+  btnStart.classList.toggle('running', state.motor.running);
+});
+
+// --- Speed slider ---
+const speedSlider = document.getElementById('speed-slider');
+const speedDisplay = document.getElementById('speed-display');
+speedSlider.addEventListener('input', () => {
+  state.motor.maxRPM = parseInt(speedSlider.value);
+  speedDisplay.textContent = state.motor.maxRPM + ' RPM';
+  sendMotor();
+  state.activePreset = null;
+  updatePresetUI();
+});
+
+// --- Mode buttons ---
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.motor.mode = btn.dataset.mode;
+    sendMotor();
+    document.getElementById('wail-speed-group').style.display =
+      state.motor.mode === 'wail' ? '' : 'none';
+    state.activePreset = null;
+    updatePresetUI();
+  });
+});
+
+// --- Volume ---
+const volumeSlider = document.getElementById('volume-slider');
+const volumeDisplay = document.getElementById('volume-display');
+volumeSlider.addEventListener('input', () => {
+  state.volume = parseInt(volumeSlider.value) / 100;
+  volumeDisplay.textContent = Math.round(state.volume * 100) + '%';
+  sendVolume();
+});
+
+// --- Ring controls ---
+function updateRingUI() {
+  const container = document.getElementById('ring-controls');
+  container.innerHTML = '';
+
+  state.rings.forEach((ring, i) => {
+    const color = RING_COLORS[i % RING_COLORS.length];
+    const div = document.createElement('div');
+    div.className = 'ring-item' + (i === state.selectedRing ? ' selected' : '') + (!ring.enabled ? ' disabled' : '');
+    div.style.borderLeftColor = color;
+    div.innerHTML = `
+      <div class="ring-header">
+        <span><span class="ring-badge" style="background:${color}"></span>
+        Ring ${i + 1}: ${ring.portCount} holes</span>
+        <div class="ring-actions">
+          <button class="btn-small" data-toggle="${i}">${ring.enabled ? 'ON' : 'OFF'}</button>
+          ${state.rings.length > 1 ? `<button class="btn-small danger" data-remove="${i}">X</button>` : ''}
+        </div>
+      </div>
+    `;
+    div.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      state.selectedRing = i;
+      updateRingUI();
+    });
+    container.appendChild(div);
+  });
+
+  // Toggle/remove handlers
+  container.querySelectorAll('[data-toggle]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.toggle);
+      state.rings[idx].enabled = !state.rings[idx].enabled;
+      sendConfig();
+      updateRingUI();
+      state.activePreset = null;
+      updatePresetUI();
+    });
+  });
+  container.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.remove);
+      state.rings.splice(idx, 1);
+      if (state.selectedRing >= state.rings.length) state.selectedRing = state.rings.length - 1;
+      sendConfig();
+      updateRingUI();
+      state.activePreset = null;
+      updatePresetUI();
+    });
+  });
+
+  // Update selected ring controls
+  const selControls = document.getElementById('selected-ring-controls');
+  if (state.rings.length > 0 && state.selectedRing < state.rings.length) {
+    selControls.style.display = '';
+    const ring = state.rings[state.selectedRing];
+    document.getElementById('port-count-slider').value = ring.portCount;
+    document.getElementById('port-count-display').textContent = ring.portCount;
+    document.getElementById('duty-slider').value = Math.round(ring.dutyCycle * 100);
+    document.getElementById('duty-display').textContent = Math.round(ring.dutyCycle * 100) + '%';
+    document.querySelectorAll('.shape-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.shape === ring.portShape);
+    });
+    // Frequency display
+    const freq = ring.portCount * state.motor.maxRPM / 60;
+    document.getElementById('ring-freq-display').textContent = Math.round(freq) + ' Hz';
+  } else {
+    selControls.style.display = 'none';
+  }
+
+  // Add ring button
+  document.getElementById('btn-add-ring').style.display =
+    state.rings.length >= MAX_RINGS ? 'none' : '';
+}
+
+// Add ring
+document.getElementById('btn-add-ring').addEventListener('click', () => {
+  if (state.rings.length >= MAX_RINGS) return;
+  state.rings.push({ portCount: 8, portShape: 'rectangular', dutyCycle: 0.5, enabled: true });
+  state.selectedRing = state.rings.length - 1;
+  sendConfig();
+  updateRingUI();
+  state.activePreset = null;
+  updatePresetUI();
+});
+
+// Port count slider
+document.getElementById('port-count-slider').addEventListener('input', (e) => {
+  if (state.selectedRing >= state.rings.length) return;
+  state.rings[state.selectedRing].portCount = parseInt(e.target.value);
+  document.getElementById('port-count-display').textContent = e.target.value;
+  const freq = state.rings[state.selectedRing].portCount * state.motor.maxRPM / 60;
+  document.getElementById('ring-freq-display').textContent = Math.round(freq) + ' Hz';
+  sendConfig();
+  updateRingUI();
+  state.activePreset = null;
+  updatePresetUI();
+});
+
+// Duty cycle slider
+document.getElementById('duty-slider').addEventListener('input', (e) => {
+  if (state.selectedRing >= state.rings.length) return;
+  state.rings[state.selectedRing].dutyCycle = parseInt(e.target.value) / 100;
+  document.getElementById('duty-display').textContent = e.target.value + '%';
+  sendConfig();
+  state.activePreset = null;
+  updatePresetUI();
+});
+
+// Shape toggle
+document.querySelectorAll('.shape-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (state.selectedRing >= state.rings.length) return;
+    state.rings[state.selectedRing].portShape = btn.dataset.shape;
+    document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sendConfig();
+    state.activePreset = null;
+    updatePresetUI();
+  });
+});
+
+// --- Advanced controls ---
+document.getElementById('advanced-toggle').addEventListener('click', () => {
+  const content = document.getElementById('advanced-content');
+  content.classList.toggle('open');
+});
+
+const powerSlider = document.getElementById('power-slider');
+const powerDisplay = document.getElementById('power-display');
+powerSlider.addEventListener('input', () => {
+  const pct = parseInt(powerSlider.value);
+  powerDisplay.textContent = pct + '%';
+  state.motor.tauUp = 20 * (1 - pct / 100) + 1;
+  sendMotor();
+});
+
+const weightSlider = document.getElementById('weight-slider');
+const weightDisplay = document.getElementById('weight-display');
+weightSlider.addEventListener('input', () => {
+  const pct = parseInt(weightSlider.value);
+  weightDisplay.textContent = pct + '%';
+  state.motor.tauDown = 30 * (pct / 100) + 2;
+  sendMotor();
+});
+
+const wailSlider = document.getElementById('wail-slider');
+const wailDisplay = document.getElementById('wail-display');
+wailSlider.addEventListener('input', () => {
+  state.motor.wailPeriod = parseInt(wailSlider.value);
+  wailDisplay.textContent = state.motor.wailPeriod + 's';
+  sendMotor();
+});
+
+// --- Presets ---
+function loadPreset(key) {
+  const preset = PRESETS[key];
+  if (!preset) return;
+
+  state.rings = preset.rings.map(r => ({ ...r }));
+  Object.assign(state.motor, preset.motor);
+  state.motor.running = state.motor.running; // keep current running state
+  state.horn = { ...preset.horn };
+  state.volume = preset.volume;
+  state.selectedRing = 0;
+  state.activePreset = key;
+
+  sendConfig();
+  sendMotor();
+  sendVolume();
+  updateHornFilter();
+  syncUIFromState();
+}
+
+function syncUIFromState() {
+  speedSlider.value = state.motor.maxRPM;
+  speedDisplay.textContent = state.motor.maxRPM + ' RPM';
+
+  document.querySelectorAll('.mode-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === state.motor.mode);
+  });
+
+  volumeSlider.value = Math.round(state.volume * 100);
+  volumeDisplay.textContent = Math.round(state.volume * 100) + '%';
+
+  // Power slider: reverse the tauUp mapping
+  const powerPct = Math.round((1 - (state.motor.tauUp - 1) / 19) * 100);
+  powerSlider.value = Math.max(10, Math.min(100, powerPct));
+  powerDisplay.textContent = powerSlider.value + '%';
+
+  // Weight slider: reverse the tauDown mapping
+  const weightPct = Math.round(((state.motor.tauDown - 2) / 28) * 100);
+  weightSlider.value = Math.max(10, Math.min(100, weightPct));
+  weightDisplay.textContent = weightSlider.value + '%';
+
+  wailSlider.value = state.motor.wailPeriod;
+  wailDisplay.textContent = state.motor.wailPeriod + 's';
+
+  document.getElementById('wail-speed-group').style.display =
+    state.motor.mode === 'wail' ? '' : 'none';
+
+  btnStart.textContent = state.motor.running ? 'STOP' : 'START';
+  btnStart.classList.toggle('running', state.motor.running);
+
+  updateRingUI();
+  updatePresetUI();
+}
+
+function updatePresetUI() {
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === state.activePreset);
+  });
+}
+
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadPreset(btn.dataset.preset));
+});
+
+// --- Save/Load ---
+function getSaves() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    return Array.isArray(data) ? data : [];
+  } catch { return []; }
+}
+
+function saveSiren(name) {
+  const saves = getSaves();
+  saves.push({
+    version: 1,
+    name: name,
+    timestamp: Date.now(),
+    state: {
+      rings: state.rings.map(r => ({ ...r })),
+      motor: { ...state.motor },
+      horn: { ...state.horn },
+      volume: state.volume,
+    },
+  });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
+}
+
+function loadSiren(index) {
+  const saves = getSaves();
+  if (index < 0 || index >= saves.length) return;
+  const save = saves[index];
+  state.rings = save.state.rings.map(r => ({ ...r }));
+  Object.assign(state.motor, save.state.motor);
+  state.horn = { ...save.state.horn };
+  state.volume = save.state.volume;
+  state.selectedRing = 0;
+  state.activePreset = null;
+
+  sendConfig();
+  sendMotor();
+  sendVolume();
+  updateHornFilter();
+  syncUIFromState();
+}
+
+function deleteSiren(index) {
+  const saves = getSaves();
+  saves.splice(index, 1);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(saves));
+}
+
+// Save modal
+document.getElementById('btn-save').addEventListener('click', () => {
+  const saves = getSaves();
+  document.getElementById('save-name').value = 'My Siren #' + (saves.length + 1);
+  document.getElementById('save-modal').classList.add('open');
+});
+document.getElementById('save-cancel').addEventListener('click', () => {
+  document.getElementById('save-modal').classList.remove('open');
+});
+document.getElementById('save-confirm').addEventListener('click', () => {
+  const name = document.getElementById('save-name').value.trim() || 'My Siren';
+  saveSiren(name);
+  document.getElementById('save-modal').classList.remove('open');
+});
+
+// Load modal
+document.getElementById('btn-load').addEventListener('click', () => {
+  const saves = getSaves();
+  const list = document.getElementById('save-list');
+  list.innerHTML = '';
+
+  if (saves.length === 0) {
+    list.innerHTML = '<p style="color:#888;text-align:center;padding:16px">No saved sirens yet!</p>';
+  } else {
+    saves.forEach((save, i) => {
+      const div = document.createElement('div');
+      div.className = 'save-list-item';
+      const date = new Date(save.timestamp).toLocaleDateString();
+      div.innerHTML = `
+        <div>
+          <div class="name">${save.name}</div>
+          <div class="date">${date}</div>
+        </div>
+        <button class="btn-small danger" data-delete="${i}">X</button>
+      `;
+      div.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        loadSiren(i);
+        document.getElementById('load-modal').classList.remove('open');
+      });
+      list.appendChild(div);
+    });
+
+    list.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteSiren(parseInt(btn.dataset.delete));
+        document.getElementById('btn-load').click();
+      });
+    });
+  }
+
+  document.getElementById('load-modal').classList.add('open');
+});
+document.getElementById('load-cancel').addEventListener('click', () => {
+  document.getElementById('load-modal').classList.remove('open');
+});
+
+// --- URL sharing ---
+function encodeStateToHash() {
+  const data = {
+    v: 1,
+    r: state.rings,
+    m: state.motor,
+    h: state.horn,
+    vol: state.volume,
+  };
+  return '#config=' + btoa(JSON.stringify(data));
+}
+
+function loadFromHash() {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#config=')) return false;
+  try {
+    const data = JSON.parse(atob(hash.slice(8)));
+    if (data.v !== 1) return false;
+    state.rings = data.r.map(r => ({ ...r }));
+    Object.assign(state.motor, data.m);
+    state.motor.running = false;
+    state.horn = { ...data.h };
+    state.volume = data.vol;
+    state.selectedRing = 0;
+    state.activePreset = null;
+    return true;
+  } catch { return false; }
+}
+
+document.getElementById('btn-share').addEventListener('click', () => {
+  const hash = encodeStateToHash();
+  const url = window.location.origin + window.location.pathname + hash;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('btn-share');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy Link'; }, 2000);
+  }).catch(() => {
+    prompt('Copy this link:', url);
+  });
+});
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+const tapOverlay = document.getElementById('tap-overlay');
+
+tapOverlay.addEventListener('click', async () => {
+  tapOverlay.classList.add('hidden');
+  await initAudio();
+  if (loadFromHash()) {
+    sendConfig();
+    sendMotor();
+    sendVolume();
+    updateHornFilter();
+  }
+  syncUIFromState();
+  setupCanvas();
+  requestAnimationFrame(drawSiren);
+});
+
+window.addEventListener('resize', () => {
+  if (audioReady) setupCanvas();
+});
+</script>
+</body>
+</html>
