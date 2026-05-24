@@ -137,9 +137,10 @@ class SirenProcessor extends AudioWorkletProcessor {
         const ring = this.rings[r];
         if (!ring.enabled) continue;
 
-        // Smooth shutter transition (linear, like a physical shutter sliding)
-        const shutterTarget = ring.shutterOpen ? 1.0 : 0.0;
-        let sp = this.shutterPositions[r] || 0;
+        // Smooth shutter transition — floor at 0.08 for leakage
+        const shutterTarget = ring.shutterOpen ? 1.0 : 0.08;
+        let sp = this.shutterPositions[r];
+        if (sp === undefined) sp = ring.shutterOpen ? 1.0 : 0.08;
         if (sp < shutterTarget) {
           sp = Math.min(shutterTarget, sp + this.shutterSpeed * dt);
         } else if (sp > shutterTarget) {
@@ -147,14 +148,13 @@ class SirenProcessor extends AudioWorkletProcessor {
         }
         this.shutterPositions[r] = sp;
 
-        if (sp < 0.001) continue;
         activeCount++;
 
         const n = ring.portCount;
         const portPhase = ((n * this.rotorAngle) / (2 * Math.PI)) % 1.0;
 
-        // Shutter modulates effective stator opening
-        const effectiveStator = ring.statorDutyCycle * sp;
+        // Shutter reduces stator opening but keeps a minimum so waveform stays smooth
+        const effectiveStator = ring.statorDutyCycle * (0.15 + 0.85 * sp);
 
         let openness;
         if (ring.portShape === 'round') {
@@ -165,11 +165,11 @@ class SirenProcessor extends AudioWorkletProcessor {
 
         // Center around 0 for audio signal, weight by ring index
         const weight = 0.8 + 0.2 * (r / Math.max(1, this.rings.length - 1));
-        let ringSample = (openness - 0.5) * weight;
+        let ringSample = (openness - 0.5) * weight * (0.15 + 0.85 * sp);
 
         // Low-pass filter simulates shutter muffling higher frequencies
         if (sp < 0.999) {
-          const cutoff = 800 * Math.pow(25, sp);
+          const cutoff = 1200 + 18800 * sp * sp;
           const alpha = 1 - Math.exp(-2 * Math.PI * cutoff * dt);
           this.shutterFilterStates[r] += alpha * (ringSample - this.shutterFilterStates[r]);
           ringSample = this.shutterFilterStates[r];
